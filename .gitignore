@@ -34,7 +34,8 @@ yarn-error.log*
 next-env.d.ts
 
 # prisma
-/prisma/migrations
+# Note: migrations SHOULD be tracked in git - they're part of the codebase
+# Only ignore migration artifacts, not the migrations themselves
 
 # logs
 /logs

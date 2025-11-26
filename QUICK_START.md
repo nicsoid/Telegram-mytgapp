@@ -7,8 +7,8 @@
 Create a `.env` file in the root directory:
 
 ```bash
-# Database
-DATABASE_URL="postgresql://postgres:p933kLDsURjUL7@127.0.0.1:5432/mytgapp"
+# Database (Note: Port 5434 for VPS Docker PostgreSQL)
+DATABASE_URL="postgresql://postgres:p933kLDsURjUL7@127.0.0.1:5434/mytgapp"
 
 # NextAuth
 NEXTAUTH_SECRET="sadjqwsdaeds77DIlkkDJLWKNwwq230lKffep92"
