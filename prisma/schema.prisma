@@ -1,0 +1,279 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// NextAuth models
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@index([userId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+// Main application models
+enum UserRole {
+  USER
+  PUBLISHER
+  ADMIN
+}
+
+enum SubscriptionTier {
+  FREE
+  MONTHLY
+  REVENUE_SHARE
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  CANCELED
+  EXPIRED
+}
+
+enum PostStatus {
+  DRAFT
+  SCHEDULED
+  SENT
+  FAILED
+  CANCELLED
+}
+
+enum CreditTransactionType {
+  PURCHASE
+  EARNED
+  SPENT
+  WITHDRAWAL
+  ADMIN_GRANT
+  COMMISSION
+}
+
+model User {
+  id                String   @id @default(cuid())
+  name              String?
+  email             String?  @unique
+  emailVerified     DateTime?
+  image             String?
+  password          String? // For email/password auth (optional, can use Telegram only)
+  role              UserRole @default(USER)
+  telegramId       String?  @unique
+  telegramUsername String?
+  telegramVerifiedAt DateTime? // When Telegram account was verified
+  credits           Int      @default(0) // Unified credit balance
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  accounts              Account[]
+  sessions              Session[]
+  publisher             Publisher?
+  advertiserPosts       TelegramPost[]          @relation("AdvertiserPosts")
+  creditTransactions    CreditTransaction[]
+  publisherManagedUsers PublisherManagedUser[] @relation("ManagedUser")
+  creditRequests        CreditRequest[]
+
+  @@index([email])
+  @@index([telegramId])
+  @@index([telegramUsername])
+}
+
+model Publisher {
+  id                    String   @id @default(cuid())
+  userId                String   @unique
+  subscriptionTier      SubscriptionTier @default(FREE)
+  subscriptionStatus    SubscriptionStatus @default(ACTIVE)
+  subscriptionExpiresAt DateTime?
+  revenueSharePercent   Float?   // For revenue share tier (e.g., 0.20 = 20%)
+  totalEarnings         Int      @default(0) // Credits earned from paid posts
+  totalSpent            Int      @default(0) // Credits spent on own posts
+  freeCreditsUsed       Int      @default(0) // Track free tier usage
+  // Verification status
+  telegramVerified      Boolean  @default(false) // Telegram account verified
+  emailVerified         Boolean  @default(false) // Email verified
+  isVerified            Boolean  @default(false) // Both Telegram and email verified
+  createdAt             DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+
+  user            User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  groups          TelegramGroup[]
+  posts           TelegramPost[]  @relation("PublisherPosts")
+  subscriptions   Subscription[]
+  managedUsers    PublisherManagedUser[] @relation("Publisher")
+  creditRequests  CreditRequest[]
+
+  @@index([userId])
+  @@index([isVerified])
+}
+
+model TelegramGroup {
+  id                  String   @id @default(cuid())
+  publisherId         String
+  telegramChatId      String   @unique // Telegram group chat ID
+  name                String
+  username            String?  // If public group
+  description         String?  @db.Text
+  isVerified          Boolean  @default(false) // Ownership verified via bot
+  verifiedAt          DateTime?
+  verificationCode    String?  // Temporary code for verification
+  verifiedByBot       Boolean  @default(false) // Bot confirmed publisher is admin
+  pricePerPost        Int      @default(1) // Price in credits per post
+  freePostIntervalDays Int    @default(7) // Days between free posts
+  isActive            Boolean  @default(true)
+  postingWindows      Json?    // Time slots when posts can be scheduled
+  totalPostsScheduled Int      @default(0)
+  totalPostsSent      Int      @default(0)
+  totalRevenue        Int      @default(0) // Total credits earned
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  publisher Publisher @relation(fields: [publisherId], references: [id], onDelete: Cascade)
+  posts     TelegramPost[]
+
+  @@index([publisherId])
+  @@index([telegramChatId])
+  @@index([isVerified])
+}
+
+model TelegramPost {
+  id            String     @id @default(cuid())
+  groupId       String
+  publisherId   String
+  advertiserId  String?    // If paid ad, null if publisher's own post
+  content       String     @db.Text
+  mediaUrls     String[]   // Array of image/video URLs
+  scheduledAt   DateTime
+  postedAt      DateTime?
+  status        PostStatus @default(DRAFT)
+  failureReason String?    @db.Text
+  isPaidAd      Boolean    @default(false)
+  creditsPaid   Int?       // Credits paid for this post (if paid ad)
+  campaignId    String?    // If part of a campaign
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+
+  group      TelegramGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  publisher  Publisher      @relation("PublisherPosts", fields: [publisherId], references: [id], onDelete: Cascade)
+  advertiser User?          @relation("AdvertiserPosts", fields: [advertiserId], references: [id], onDelete: SetNull)
+
+  @@index([groupId])
+  @@index([publisherId])
+  @@index([advertiserId])
+  @@index([scheduledAt])
+  @@index([status])
+}
+
+model CreditTransaction {
+  id            String                @id @default(cuid())
+  userId        String
+  amount        Int                   // Positive for credit, negative for debit
+  type          CreditTransactionType
+  relatedPostId String?              // If related to a post
+  relatedGroupId String?              // If related to a group
+  description   String?              @db.Text
+  createdAt     DateTime              @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([type])
+  @@index([createdAt])
+}
+
+model Subscription {
+  id                    String             @id @default(cuid())
+  publisherId            String
+  tier                  SubscriptionTier
+  status                SubscriptionStatus @default(ACTIVE)
+  stripeSubscriptionId  String?            @unique
+  stripeCustomerId      String?
+  currentPeriodStart    DateTime?
+  currentPeriodEnd      DateTime?
+  monthlyFee            Int?               // Monthly fee in cents (if fixed fee)
+  revenueSharePercent   Float?             // Commission percent (if revenue share)
+  createdAt             DateTime           @default(now())
+  updatedAt             DateTime           @updatedAt
+
+  publisher Publisher @relation(fields: [publisherId], references: [id], onDelete: Cascade)
+
+  @@unique([publisherId, tier])
+  @@index([publisherId])
+  @@index([status])
+}
+
+// Publisher-managed users (users who can post in publisher's groups)
+model PublisherManagedUser {
+  id          String   @id @default(cuid())
+  publisherId String
+  userId      String
+  // Publisher can manage credits for this user
+  creditsAdded Int     @default(0) // Total credits added by publisher
+  notes       String?  @db.Text
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  publisher Publisher @relation("Publisher", fields: [publisherId], references: [id], onDelete: Cascade)
+  user      User      @relation("ManagedUser", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([publisherId, userId])
+  @@index([publisherId])
+  @@index([userId])
+}
+
+// Credit requests from users to publishers or admin
+model CreditRequest {
+  id          String   @id @default(cuid())
+  userId      String
+  publisherId String?  // If requesting from a publisher, null if requesting from admin
+  amount      Int      // Credits requested
+  reason      String?  @db.Text
+  status      String   @default("PENDING") // PENDING, APPROVED, REJECTED
+  processedBy String?  // Publisher or admin user ID who processed it
+  processedAt DateTime?
+  notes       String?  @db.Text
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  publisher Publisher? @relation(fields: [publisherId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([publisherId])
+  @@index([status])
+  @@index([createdAt])
+}
