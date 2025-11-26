@@ -123,6 +123,31 @@ export function parseTelegramWidgetData(data: Record<string, string>): TelegramU
   }
 }
 
+function getBotToken() {
+  const botToken = process.env.TELEGRAM_BOT_TOKEN
+  if (!botToken) {
+    throw new Error('TELEGRAM_BOT_TOKEN not configured')
+  }
+  return botToken
+}
+
+async function callTelegramMethod<T>(method: string, payload: Record<string, unknown>) {
+  const botToken = getBotToken()
+  const url = `https://api.telegram.org/bot${botToken}/${method}`
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  })
+
+  if (!response.ok) {
+    const error = await response.json()
+    throw new Error(`Telegram API error: ${error.description || response.statusText}`)
+  }
+
+  return response.json() as Promise<T>
+}
+
 /**
  * Send message via Telegram Bot API
  */
@@ -134,56 +159,74 @@ export async function sendTelegramMessage(
     replyMarkup?: any
   }
 ) {
-  const botToken = process.env.TELEGRAM_BOT_TOKEN
-  if (!botToken) {
-    throw new Error('TELEGRAM_BOT_TOKEN not configured')
-  }
-
-  const url = `https://api.telegram.org/bot${botToken}/sendMessage`
-  const response = await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      chat_id: chatId,
-      text,
-      parse_mode: options?.parseMode,
-      reply_markup: options?.replyMarkup,
-    }),
+  return callTelegramMethod('sendMessage', {
+    chat_id: chatId,
+    text,
+    parse_mode: options?.parseMode,
+    reply_markup: options?.replyMarkup,
   })
+}
 
-  if (!response.ok) {
-    const error = await response.json()
-    throw new Error(`Telegram API error: ${error.description || response.statusText}`)
-  }
+export async function sendTelegramPhoto(
+  chatId: string,
+  photo: string,
+  options?: { caption?: string; parseMode?: 'HTML' | 'Markdown' | 'MarkdownV2' }
+) {
+  return callTelegramMethod('sendPhoto', {
+    chat_id: chatId,
+    photo,
+    caption: options?.caption,
+    parse_mode: options?.parseMode,
+  })
+}
 
-  return response.json()
+export async function sendTelegramVideo(
+  chatId: string,
+  video: string,
+  options?: { caption?: string; parseMode?: 'HTML' | 'Markdown' | 'MarkdownV2' }
+) {
+  return callTelegramMethod('sendVideo', {
+    chat_id: chatId,
+    video,
+    caption: options?.caption,
+    parse_mode: options?.parseMode,
+    supports_streaming: true,
+  })
+}
+
+type MediaGroupItem = {
+  type: 'photo' | 'video'
+  media: string
+  caption?: string
+  parse_mode?: 'HTML' | 'Markdown' | 'MarkdownV2'
+}
+
+export async function sendTelegramMediaGroup(chatId: string, media: MediaGroupItem[]) {
+  return callTelegramMethod('sendMediaGroup', {
+    chat_id: chatId,
+    media: media.map((item) => ({
+      type: item.type,
+      media: item.media,
+      caption: item.caption,
+      parse_mode: item.parse_mode,
+    })),
+  })
 }
 
 /**
  * Get chat member info (to verify admin status)
  */
+type ChatMemberResponse = {
+  result?: {
+    status?: string
+  }
+}
+
 export async function getChatMember(chatId: string, userId: string) {
-  const botToken = process.env.TELEGRAM_BOT_TOKEN
-  if (!botToken) {
-    throw new Error('TELEGRAM_BOT_TOKEN not configured')
-  }
-
-  const url = `https://api.telegram.org/bot${botToken}/getChatMember`
-  const response = await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      chat_id: chatId,
-      user_id: userId,
-    }),
+  return callTelegramMethod<ChatMemberResponse>('getChatMember', {
+    chat_id: chatId,
+    user_id: userId,
   })
-
-  if (!response.ok) {
-    const error = await response.json()
-    throw new Error(`Telegram API error: ${error.description || response.statusText}`)
-  }
-
-  return response.json()
 }
 
 /**

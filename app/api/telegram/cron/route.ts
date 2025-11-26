@@ -1,12 +1,40 @@
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
-import { sendTelegramMessage } from "@/lib/telegram"
+import {
+  sendTelegramMessage,
+  sendTelegramPhoto,
+  sendTelegramVideo,
+  sendTelegramMediaGroup,
+} from "@/lib/telegram"
 import { PostStatus } from "@prisma/client"
+import { convertRichTextToTelegram, stripRichTextTags } from "@/lib/richText"
 
 /**
  * Cron job to send scheduled Telegram posts
  * Should be called periodically (e.g., every minute) via cron service
  */
+const IMAGE_EXTENSIONS = ["jpg", "jpeg", "png", "gif", "webp", "bmp"]
+const VIDEO_EXTENSIONS = ["mp4", "mov", "mkv", "webm", "m4v"]
+
+function getMediaType(url: string): "video" | "photo" {
+  const cleanUrl = url.split("?")[0]
+  const ext = cleanUrl.split(".").pop()?.toLowerCase() || ""
+  if (VIDEO_EXTENSIONS.includes(ext)) {
+    return "video"
+  }
+  if (IMAGE_EXTENSIONS.includes(ext)) {
+    return "photo"
+  }
+  return "photo"
+}
+
+function prepareCaption(content: string, limit = 1024) {
+  if (!content) return ""
+  if (content.length <= limit) return content
+  const plain = stripRichTextTags(content).slice(0, limit - 3)
+  return `${plain}...`
+}
+
 export async function GET(request: NextRequest) {
   // Verify cron secret
   const authHeader = request.headers.get("authorization")
@@ -48,10 +76,39 @@ export async function GET(request: NextRequest) {
 
     for (const post of postsToSend) {
       try {
-        // Send post to Telegram
-        await sendTelegramMessage(post.group.telegramChatId, post.content, {
-          parseMode: "HTML",
-        })
+        const captionHtml = convertRichTextToTelegram(post.content || "")
+        const chatId = post.group.telegramChatId
+        const mediaUrls = post.mediaUrls || []
+
+        if (!mediaUrls.length) {
+          await sendTelegramMessage(chatId, captionHtml, {
+            parseMode: "HTML",
+          })
+        } else if (mediaUrls.length === 1) {
+          const mediaUrl = mediaUrls[0]
+          const type = getMediaType(mediaUrl)
+          const caption = prepareCaption(captionHtml)
+          if (type === "video") {
+            await sendTelegramVideo(chatId, mediaUrl, {
+              caption,
+              parseMode: "HTML",
+            })
+          } else {
+            await sendTelegramPhoto(chatId, mediaUrl, {
+              caption,
+              parseMode: "HTML",
+            })
+          }
+        } else {
+          const caption = prepareCaption(captionHtml)
+          const mediaItems = mediaUrls.slice(0, 10).map((url, index) => ({
+            type: getMediaType(url),
+            media: url,
+            caption: index === 0 ? caption : undefined,
+            parse_mode: index === 0 ? ("HTML" as const) : undefined,
+          }))
+          await sendTelegramMediaGroup(chatId, mediaItems)
+        }
 
         // Update post status
         await prisma.telegramPost.update({

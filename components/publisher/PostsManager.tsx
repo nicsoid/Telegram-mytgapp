@@ -1,7 +1,10 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import Link from "next/link"
+import FormattingToolbar from "@/components/editor/FormattingToolbar"
+import { FormatType, applyFormatting } from "@/lib/richText"
+import RichText from "@/components/RichText"
 
 type Group = {
   id: string
@@ -39,6 +42,7 @@ export default function PostsManager() {
   })
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const contentRef = useRef<HTMLTextAreaElement | null>(null)
 
   useEffect(() => {
     fetchData()
@@ -66,6 +70,32 @@ export default function PostsManager() {
     } finally {
       setLoading(false)
     }
+  }
+
+  const handleFormat = (format: FormatType) => {
+    const textarea = contentRef.current
+    if (!textarea) return
+
+    let extra: string | undefined
+    if (format === "link") {
+      const url = prompt("Enter URL (https://example.com)")
+      if (!url) return
+      extra = url
+    }
+
+    const { value, cursor } = applyFormatting(
+      formData.content,
+      textarea.selectionStart,
+      textarea.selectionEnd,
+      format,
+      extra
+    )
+
+    setFormData((prev) => ({ ...prev, content: value }))
+    requestAnimationFrame(() => {
+      textarea.focus()
+      textarea.setSelectionRange(cursor, cursor)
+    })
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -187,14 +217,19 @@ export default function PostsManager() {
 
               <div>
                 <label className="block text-sm font-medium text-gray-700">Content *</label>
+                <FormattingToolbar onFormat={handleFormat} />
                 <textarea
+                  ref={contentRef}
                   required
                   value={formData.content}
                   onChange={(e) => setFormData({ ...formData, content: e.target.value })}
                   rows={6}
                   className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-blue-500"
-                  placeholder="Post content..."
+                  placeholder="Use tags like [b]bold[/b], [i]italic[/i], [link=https://example.com]text[/link]"
                 />
+                <p className="mt-1 text-xs text-gray-500">
+                  Supported tags: [b], [i], [u], [s], [code], [link=https://example.com]text[/link]
+                </p>
               </div>
 
               <div>
@@ -262,7 +297,7 @@ export default function PostsManager() {
                         </span>
                       )}
                     </div>
-                    <p className="mt-2 text-sm text-gray-600">{post.content.substring(0, 200)}...</p>
+                    <RichText text={post.content} className="mt-2 max-h-24 overflow-hidden text-sm" />
                     <div className="mt-4 text-sm text-gray-500">
                       <p>
                         Scheduled: {new Date(post.scheduledAt).toLocaleString()}
