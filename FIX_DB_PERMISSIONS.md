@@ -1,4 +1,4 @@
-# Fix PostgreSQL Database Permissions
+# Fix PostgreSQL Database Permissions (Docker)
 
 ## Problem
 You're getting this error:
@@ -8,27 +8,27 @@ Error: ERROR: permission denied for schema public
 
 This happens when the database user doesn't have the necessary permissions on the `public` schema.
 
-## Solution
+## Quick Fix (Recommended)
 
-### Option 1: Run the Fix Script (Easiest)
+Run the automated script:
 
 ```bash
 ./scripts/fix-db-permissions.sh
 ```
 
-### Option 2: Manual SQL Fix
+## Manual Fix (Docker)
 
-Connect to PostgreSQL as a superuser (usually `postgres` user):
+If the script doesn't work, run these commands manually:
+
+### Step 1: Connect to PostgreSQL in Docker
 
 ```bash
-# If you have psql installed
-psql -U postgres -d mytgapp
-
-# Or if using Docker
-docker exec -it <postgres-container> psql -U postgres -d mytgapp
+docker exec -it vps-postgres psql -U postgres -d mytgapp
 ```
 
-Then run these SQL commands:
+### Step 2: Run SQL Commands
+
+Once connected, run these SQL commands:
 
 ```sql
 -- Grant usage on schema public
@@ -53,30 +53,45 @@ ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON FUNCTIONS TO postgres;
 
 -- Make sure the user can create objects
 ALTER USER postgres CREATEDB;
+
+-- Verify permissions
+\dn+ public
+
+-- Exit
+\q
 ```
 
-### Option 3: Recreate Database (If you can lose data)
+### One-Line Command (Alternative)
 
-If this is a development database and you can lose the data:
+You can also run all commands in one line:
 
 ```bash
-# Drop and recreate the database
-psql -U postgres -c "DROP DATABASE IF EXISTS mytgapp;"
-psql -U postgres -c "CREATE DATABASE mytgapp OWNER postgres;"
-
-# Then run migrations
-npx prisma migrate deploy
+docker exec -i vps-postgres psql -U postgres -d mytgapp <<EOF
+GRANT USAGE ON SCHEMA public TO postgres;
+GRANT ALL ON SCHEMA public TO postgres;
+GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO postgres;
+GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO postgres;
+GRANT ALL PRIVILEGES ON ALL FUNCTIONS IN SCHEMA public TO postgres;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO postgres;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO postgres;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON FUNCTIONS TO postgres;
+ALTER USER postgres CREATEDB;
+EOF
 ```
 
-## Port Mismatch Issue
+## Verify Container is Running
 
-The error shows port `5434` but your `.env` has `5432`. Check your actual database port:
+Check if the container is running:
 
-1. Check if PostgreSQL is running on a different port
-2. Update your `.env` file if needed:
-   ```env
-   DATABASE_URL="postgresql://postgres:p933kLDsURjUL7@127.0.0.1:5434/mytgapp?schema=public"
-   ```
+```bash
+docker ps | grep vps-postgres
+```
+
+If it's not running, start it:
+
+```bash
+docker start vps-postgres
+```
 
 ## After Fixing Permissions
 
@@ -92,13 +107,34 @@ Or if you want to create a fresh migration:
 npx prisma migrate dev
 ```
 
-## Verify Permissions
+## Troubleshooting
 
-To verify the permissions were set correctly:
+### Container Not Found
 
-```sql
-\dn+ public
+If you get "container not found", check the actual container name:
+
+```bash
+docker ps -a | grep postgres
 ```
 
-This should show the schema with all privileges granted to your user.
+Then update the script or use the correct container name.
 
+### Database Doesn't Exist
+
+If the database doesn't exist, create it:
+
+```bash
+docker exec -it vps-postgres psql -U postgres -c "CREATE DATABASE mytgapp;"
+```
+
+### Different Database User
+
+If you're using a different database user (not `postgres`), update the script or replace `postgres` with your username in the SQL commands.
+
+## Check Current Permissions
+
+To check current permissions:
+
+```bash
+docker exec -it vps-postgres psql -U postgres -d mytgapp -c "\dn+ public"
+```

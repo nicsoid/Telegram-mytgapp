@@ -1,21 +1,32 @@
 #!/bin/bash
 # Fix PostgreSQL permissions for Prisma migrations
+# For Docker PostgreSQL container: vps-postgres
 
-# Get database connection details from .env
-DB_URL=$(grep DATABASE_URL .env | grep -v "^#" | cut -d '=' -f2 | tr -d '"')
+set -e
 
-# Extract connection details
-# Format: postgresql://user:password@host:port/database
-DB_USER=$(echo $DB_URL | sed -n 's/.*:\/\/\([^:]*\):.*/\1/p')
-DB_PASS=$(echo $DB_URL | sed -n 's/.*:\/\/[^:]*:\([^@]*\)@.*/\1/p')
-DB_HOST=$(echo $DB_URL | sed -n 's/.*@\([^:]*\):.*/\1/p')
-DB_PORT=$(echo $DB_URL | sed -n 's/.*@[^:]*:\([^/]*\)\/.*/\1/p')
-DB_NAME=$(echo $DB_URL | sed -n 's/.*\/\([^?]*\).*/\1/p')
+CONTAINER_NAME="vps-postgres"
+DB_NAME="mytgapp"
+DB_USER="postgres"
 
-echo "Connecting to database: $DB_NAME on $DB_HOST:$DB_PORT as $DB_USER"
+echo "🔧 Fixing PostgreSQL permissions for Prisma migrations..."
+echo "Container: $CONTAINER_NAME"
+echo "Database: $DB_NAME"
+echo "User: $DB_USER"
+echo ""
+
+# Check if container is running
+if ! docker ps --format '{{.Names}}' | grep -q "^${CONTAINER_NAME}$"; then
+    echo "❌ Error: Docker container '$CONTAINER_NAME' is not running"
+    echo "Start it with: docker start $CONTAINER_NAME"
+    exit 1
+fi
+
+echo "✅ Container is running"
+echo ""
 
 # Run SQL commands to fix permissions
-PGPASSWORD=$DB_PASS psql -h $DB_HOST -p $DB_PORT -U $DB_USER -d $DB_NAME <<EOF
+echo "Granting permissions..."
+docker exec -i $CONTAINER_NAME psql -U $DB_USER -d $DB_NAME <<EOF
 -- Grant usage on schema public
 GRANT USAGE ON SCHEMA public TO $DB_USER;
 
@@ -39,15 +50,22 @@ ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON FUNCTIONS TO $DB_USER;
 -- Make sure the user can create objects
 ALTER USER $DB_USER CREATEDB;
 
--- Verify
+-- Verify permissions
 SELECT 'Permissions fixed successfully!' as status;
+\dn+ public
 EOF
 
 if [ $? -eq 0 ]; then
+    echo ""
     echo "✅ Database permissions fixed successfully!"
-    echo "You can now run: npx prisma migrate deploy"
+    echo ""
+    echo "You can now run:"
+    echo "  npx prisma migrate deploy"
+    echo ""
 else
-    echo "❌ Failed to fix permissions. You may need to run this as a superuser."
-    echo "Try connecting as postgres superuser and run the SQL commands manually."
+    echo ""
+    echo "❌ Failed to fix permissions."
+    echo "Try running the SQL commands manually:"
+    echo "  docker exec -it $CONTAINER_NAME psql -U $DB_USER -d $DB_NAME"
+    exit 1
 fi
-
