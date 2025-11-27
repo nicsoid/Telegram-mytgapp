@@ -101,6 +101,8 @@ DATABASE_URL="postgresql://mytgapp_user:your_secure_password@localhost:5432/mytg
 # NextAuth
 NEXTAUTH_SECRET="generate_a_secure_random_string_here"
 NEXTAUTH_URL="https://yourdomain.com"
+AUTH_URL="https://yourdomain.com"  # Required for NextAuth v5
+AUTH_TRUST_HOST="true"  # Alternative: set this instead of trustHost in code
 
 # Telegram
 TELEGRAM_BOT_TOKEN="your-production-bot-token"
@@ -276,22 +278,42 @@ pm2 startup
 
 ### 5.1 Set Up Reverse Proxy
 
+**IMPORTANT**: Your app runs on port 3002 (as configured in ecosystem.config.js). Make sure to use the correct port!
+
 1. In CyberPanel, go to **Websites** → **List Websites** → **Manage**
-2. Go to **Rewrite Rules** or **Virtual Hosts**
-3. Add reverse proxy configuration to forward requests to Node.js:
+2. Go to **Reverse Proxy** tab (recommended) or **Rewrite Rules**
 
-**For OpenLiteSpeed:**
+**Option A: Using Reverse Proxy Feature (Recommended)**
 
-Add this to your virtual host configuration:
+1. Enable **Reverse Proxy**
+2. **Proxy URL**: `http://127.0.0.1:3002` (or `http://localhost:3002`)
+3. **Proxy Preserve Host**: Yes
+4. **Additional Headers**: (optional, usually not needed)
+5. Click **Save**
+6. Restart OpenLiteSpeed if needed
+
+**Option B: Using Rewrite Rules**
+
+Go to **Rewrite Rules** tab and add:
 
 ```
 RewriteEngine On
-RewriteRule ^(.*)$ http://localhost:3000$1 [P,L]
+RewriteCond %{REQUEST_URI} !^/\.well-known
+RewriteRule ^(.*)$ http://127.0.0.1:3002$1 [P,L]
 ```
 
-Or use CyberPanel's **Reverse Proxy** feature:
-- **Proxy URL**: `http://localhost:3000`
-- **Proxy Preserve Host**: Yes
+**Note**: Replace `3002` with your actual port if different.
+
+### 5.1.1 Troubleshooting 403 Errors
+
+If you get 403 Forbidden in browser but curl works:
+
+1. **Check Access Control**: Go to **Access Control** tab and ensure no IP restrictions
+2. **Verify Port**: Make sure reverse proxy points to the correct port (3002)
+3. **Check PM2 Status**: `pm2 status` - ensure app is running
+4. **Check Logs**: `pm2 logs mytgapp-web` and OpenLiteSpeed error logs
+5. **Test Direct Access**: `curl http://127.0.0.1:3002` should work
+6. See [TROUBLESHOOTING.md](./TROUBLESHOOTING.md) for more details
 
 ### 5.2 Configure SSL/HTTPS
 

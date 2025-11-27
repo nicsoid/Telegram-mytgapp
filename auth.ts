@@ -5,6 +5,7 @@ import Credentials from "next-auth/providers/credentials"
 import { verifyTelegramWebAppData, parseTelegramInitData } from "@/lib/telegram"
 
 const authConfig = {
+  trustHost: true, // Trust the host header (required for reverse proxy setups)
   adapter: PrismaAdapter(prisma) as any,
   providers: [
     Credentials({
