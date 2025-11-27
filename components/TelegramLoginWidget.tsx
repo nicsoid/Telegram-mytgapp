@@ -26,6 +26,10 @@ export default function TelegramLoginWidget({
   useEffect(() => {
     if (!containerRef.current || !botName) return
 
+    // Log for debugging
+    console.log('[TelegramLoginWidget] Initializing with bot:', botName)
+    console.log('[TelegramLoginWidget] NEXT_PUBLIC_TELEGRAM_BOT_USERNAME:', process.env.NEXT_PUBLIC_TELEGRAM_BOT_USERNAME)
+
     // Clear container
     containerRef.current.innerHTML = ""
 
@@ -33,6 +37,9 @@ export default function TelegramLoginWidget({
     const script = document.createElement("script")
     script.src = "https://telegram.org/js/telegram-widget.js?22"
     script.setAttribute("data-telegram-login", botName)
+    
+    // Log the actual attribute value
+    console.log('[TelegramLoginWidget] Script data-telegram-login attribute:', script.getAttribute("data-telegram-login"))
     script.setAttribute("data-size", size)
     script.setAttribute("data-request-access", requestAccess)
     script.setAttribute("data-userpic", usePic.toString())
