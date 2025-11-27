@@ -29,15 +29,19 @@ export async function GET(request: NextRequest) {
         new URL("/auth/signin?error=bot_token_not_configured", getBaseUrl(request))
       )
     }
+    const normalizedBotToken = botToken.trim()
+    if (normalizedBotToken.length !== botToken.length) {
+      console.warn("[widget] TELEGRAM_BOT_TOKEN has leading/trailing whitespace. Trimmed automatically.")
+    }
 
     // Verify Telegram widget data
     console.log('[widget] Received widget data:', {
       keys: Object.keys(widgetData),
       hasHash: !!widgetData.hash,
-      botTokenConfigured: !!botToken,
+      botTokenConfigured: !!normalizedBotToken,
     })
     
-    if (!verifyTelegramWidgetData(widgetData, botToken)) {
+    if (!verifyTelegramWidgetData(widgetData, normalizedBotToken)) {
       console.error('[widget] Verification failed for data:', {
         keys: Object.keys(widgetData),
         hash: widgetData.hash?.substring(0, 10) + '...',
