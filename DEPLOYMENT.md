@@ -79,7 +79,9 @@ git clone https://github.com/yourusername/Telegram-mytgapp.git .
 
 ```bash
 cd /home/your_username/domains/yourdomain.com/public_html
-npm install --production
+# Install all dependencies (including build-time deps like Tailwind)
+npm install
+# Note: We moved Tailwind CSS packages to dependencies for production builds
 ```
 
 ### 2.3 Set Up Environment Variables
