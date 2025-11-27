@@ -50,92 +50,29 @@ export function verifyTelegramWebAppData(initData: string, botToken: string): bo
 export function verifyTelegramWidgetData(data: Record<string, string>, botToken: string): boolean {
   try {
     const hash = data.hash
-    if (!hash) {
-      console.error('[verifyTelegramWidgetData] Missing hash in data')
-      return false
-    }
+    if (!hash) return false
 
-    // Log bot token info (first 20 chars for security)
-    const botTokenPreview = botToken ? `${botToken.substring(0, 20)}...` : 'MISSING'
-    const botId = botToken ? botToken.split(':')[0] : 'UNKNOWN'
-    console.log('[verifyTelegramWidgetData] Using bot token:', {
-      preview: botTokenPreview,
-      botId: botId,
-      tokenLength: botToken?.length || 0,
-    })
-
-    // Create data check string - CRITICAL: Must match Telegram's exact format
-    // Telegram sorts keys alphabetically and joins with \n (newline)
+    // CRITICAL FIX: Filter out 'hash' AND any empty/undefined values
+    // Telegram does not include fields with empty values in the hash calculation
     const sortedKeys = Object.keys(data)
-      .filter(key => key !== 'hash')
+      .filter(key => key !== 'hash' && data[key])
       .sort()
     
     const dataCheckString = sortedKeys
       .map(key => `${key}=${data[key]}`)
       .join('\n')
 
-    // Log the exact bytes being hashed (for debugging)
-    const dataCheckStringBytes = Buffer.from(dataCheckString, 'utf8')
-    
-    console.log('[verifyTelegramWidgetData] Hash calculation details:', {
-      sortedKeys: sortedKeys,
-      dataCheckString: JSON.stringify(dataCheckString), // Shows \n as literal
-      dataCheckStringRaw: dataCheckString, // Shows actual newlines
-      dataCheckStringLength: dataCheckString.length,
-      dataCheckStringBytes: Array.from(dataCheckStringBytes), // Show byte values
-      eachField: sortedKeys.map(key => ({
-        key,
-        value: data[key],
-        fieldString: `${key}=${data[key]}`,
-        fieldBytes: Array.from(Buffer.from(`${key}=${data[key]}`, 'utf8')),
-      })),
-    })
-
-    // Create secret key - SHA256 of bot token
     const secretKey = crypto
       .createHash('sha256')
       .update(botToken)
       .digest()
-    
-    console.log('[verifyTelegramWidgetData] Secret key:', {
-      secretKeyHex: secretKey.toString('hex'),
-      secretKeyLength: secretKey.length,
-      botTokenLength: botToken.length,
-      botTokenPreview: botToken.substring(0, 20) + '...',
-    })
 
-    // Calculate hash - HMAC-SHA256 of data check string using secret key
     const calculatedHash = crypto
       .createHmac('sha256', secretKey)
-      .update(dataCheckString, 'utf8') // Explicitly specify UTF-8
+      .update(dataCheckString)
       .digest('hex')
-    
-    console.log('[verifyTelegramWidgetData] Hash calculation result:', {
-      calculatedHash: calculatedHash,
-      receivedHash: hash,
-      match: calculatedHash === hash,
-      hashLength: calculatedHash.length,
-      receivedHashLength: hash.length,
-    })
 
-    const isValid = calculatedHash === hash
-    
-    if (!isValid) {
-      console.error('[verifyTelegramWidgetData] Hash mismatch', {
-        received: hash,
-        calculated: calculatedHash,
-        dataCheckString,
-        dataKeys: Object.keys(data).filter(k => k !== 'hash'),
-        botTokenPreview: botTokenPreview,
-        botId: botId,
-      })
-    } else {
-      console.log('[verifyTelegramWidgetData] Hash verification successful', {
-        botId: botId,
-      })
-    }
-
-    return isValid
+    return calculatedHash === hash
   } catch (error) {
     console.error('[verifyTelegramWidgetData] Error:', error)
     return false
@@ -216,13 +153,11 @@ async function callTelegramMethod<T>(method: string, payload: Record<string, unk
 
 function toAbsoluteUrl(url: string, baseUrl?: string): string {
   if (url.startsWith('http://') || url.startsWith('https://')) {
-    // Ensure HTTPS for Telegram (Telegram requires HTTPS for media URLs)
     if (url.startsWith('http://')) {
       return url.replace('http://', 'https://')
     }
     return url
   }
-  // Ensure we use HTTPS
   const defaultBaseUrl = baseUrl || process.env.NEXT_PUBLIC_APP_URL || 'https://localhost:3002'
   const appUrl = defaultBaseUrl.startsWith('https://') 
     ? defaultBaseUrl 
@@ -230,9 +165,6 @@ function toAbsoluteUrl(url: string, baseUrl?: string): string {
   return `${appUrl}${url.startsWith('/') ? url : `/${url}`}`
 }
 
-/**
- * Send message via Telegram Bot API
- */
 export async function sendTelegramMessage(
   chatId: string,
   text: string,
@@ -262,11 +194,6 @@ export async function sendTelegramPhoto(
   })
 }
 
-/**
- * Send video via Telegram Bot API
- * This implementation downloads the video first and uploads it directly for better reliability
- * Falls back to URL method if direct upload fails
- */
 export async function sendTelegramVideo(
   chatId: string,
   videoUrl: string,
@@ -276,10 +203,7 @@ export async function sendTelegramVideo(
   const parseMode = options?.parseMode || 'HTML'
   const absoluteUrl = toAbsoluteUrl(videoUrl)
   
-  // Try to download the video and upload it directly (more reliable than URL)
   try {
-    console.log(`[sendTelegramVideo] Attempting to download video from: ${absoluteUrl}`)
-    // Download the video file with proper headers
     const videoResponse = await fetch(absoluteUrl, {
       headers: {
         'User-Agent': 'Mozilla/5.0 (compatible; TelegramBot/1.0)',
@@ -288,46 +212,20 @@ export async function sendTelegramVideo(
       redirect: 'follow',
     })
     
-    console.log(`[sendTelegramVideo] Response status: ${videoResponse.status} ${videoResponse.statusText}`)
-    
     if (!videoResponse.ok) {
-      const responseText = await videoResponse.text().catch(() => 'Unable to read response')
-      console.error(`[sendTelegramVideo] Failed to fetch video: ${videoResponse.status} ${videoResponse.statusText}`)
       throw new Error(`Failed to fetch video: ${videoResponse.status} ${videoResponse.statusText}`)
     }
     
     const contentType = videoResponse.headers.get('content-type')
-    const contentLength = videoResponse.headers.get('content-length')
-    console.log(`[sendTelegramVideo] Video content-type: ${contentType}, size: ${contentLength} bytes`)
-    
-    // Verify it's actually a video
-    if (contentType && !contentType.startsWith('video/') && !contentType.startsWith('application/octet-stream')) {
-      const responseText = await videoResponse.text().catch(() => 'Unable to read response')
-      console.error(`[sendTelegramVideo] Unexpected content-type: ${contentType}`)
-      throw new Error(`URL does not point to a video file (content-type: ${contentType})`)
-    }
-    
     const videoBuffer = await videoResponse.arrayBuffer()
     const videoBlob = Buffer.from(videoBuffer)
-    console.log(`[sendTelegramVideo] Downloaded video buffer size: ${videoBlob.length} bytes`)
     
-    if (videoBlob.length === 0) {
-      throw new Error('Downloaded video file is empty')
-    }
+    if (videoBlob.length === 0) throw new Error('Downloaded video file is empty')
     
-    // Extract video dimensions to ensure correct aspect ratio
     const dimensions = getVideoDimensions(videoBlob)
-    if (dimensions) {
-      console.log(`[sendTelegramVideo] Extracted video dimensions: ${dimensions.width}x${dimensions.height}`)
-    } else {
-      console.warn(`[sendTelegramVideo] Could not extract video dimensions from file`)
-    }
-    
-    // Get filename from URL
     const urlPath = new URL(absoluteUrl).pathname
     const filename = urlPath.split('/').pop() || 'video.mp4'
     
-    // Create FormData for multipart upload using form-data package
     const FormDataModule = await import('form-data')
     const FormData = FormDataModule.default
     const form = new FormData()
@@ -338,7 +236,6 @@ export async function sendTelegramVideo(
     })
     form.append('supports_streaming', 'true')
     
-    // Add width and height if we extracted them - this helps Telegram display the video correctly
     if (dimensions) {
       form.append('width', dimensions.width.toString())
       form.append('height', dimensions.height.toString())
@@ -349,184 +246,70 @@ export async function sendTelegramVideo(
       form.append('parse_mode', parseMode)
     }
     
-    console.log(`[sendTelegramVideo] Uploading video to Telegram (chat: ${chatId}, filename: ${filename}, size: ${videoBlob.length} bytes)`)
-    
-    // Also check Telegram's absolute limit
-    const maxSize = 50 * 1024 * 1024 // 50MB
+    const maxSize = 50 * 1024 * 1024
     if (videoBlob.length > maxSize) {
-      console.warn(`[sendTelegramVideo] Video file is ${(videoBlob.length / 1024 / 1024).toFixed(2)}MB, which exceeds Telegram's 50MB limit. Falling back to URL method.`)
       throw new Error(`Video file too large (${(videoBlob.length / 1024 / 1024).toFixed(2)}MB > 50MB)`)
     }
     
-    // Get form headers - form-data package handles boundary automatically
     const formHeaders = form.getHeaders()
-    
-    // For Node.js fetch, we need to convert form-data stream to a buffer
-    // Add timeout for large file uploads (90 seconds should be enough for 50MB)
     const controller = new AbortController()
-    const timeoutId = setTimeout(() => controller.abort(), 90000) // 90 second timeout
+    const timeoutId = setTimeout(() => controller.abort(), 90000)
     
     try {
-      // Convert form-data stream to buffer for Node.js fetch compatibility
       const formBuffer = await new Promise<Buffer>((resolve, reject) => {
         const chunks: Buffer[] = []
-        form.on('data', (chunk: Buffer) => {
-          chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk))
-        })
-        form.on('end', () => {
-          resolve(Buffer.concat(chunks))
-        })
-        form.on('error', (err) => {
-          reject(err)
-        })
-        // Ensure form is being read
+        form.on('data', (chunk: Buffer) => chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)))
+        form.on('end', () => resolve(Buffer.concat(chunks)))
+        form.on('error', reject)
         form.resume()
       })
       
-      console.log(`[sendTelegramVideo] Form buffer size: ${formBuffer.length} bytes`)
-      
-      // Convert Buffer to Uint8Array for fetch compatibility
-      const bodyArray = new Uint8Array(formBuffer)
-      
       const response = await fetch(`https://api.telegram.org/bot${botToken}/sendVideo`, {
         method: 'POST',
-        body: bodyArray,
+        body: new Uint8Array(formBuffer),
         headers: formHeaders,
         signal: controller.signal,
       })
       
       clearTimeout(timeoutId)
-
-      console.log(`[sendTelegramVideo] Telegram response status: ${response.status} ${response.statusText}`)
-
-      const responseText = await response.text().catch(() => 'Unable to read response')
-      
-      let data: any = null
-      try {
-        data = JSON.parse(responseText)
-      } catch (parseError) {
-        console.error(`[sendTelegramVideo] Failed to parse Telegram response as JSON:`, parseError)
-        data = { ok: false, description: `Invalid JSON response: ${responseText.substring(0, 200)}` }
-      }
+      const data = await response.json()
 
       if (!response.ok || !data?.ok) {
-        const description = data?.description || data?.error_code || `Telegram API error (${response.status})`
-        console.error(`[sendTelegramVideo] Telegram sendVideo upload error for ${absoluteUrl}:`, {
-          status: response.status,
-          errorCode: data?.error_code,
-          description: data?.description,
-        })
-        throw new Error(description)
+        throw new Error(data?.description || `Telegram API error (${response.status})`)
       }
-
-      console.log(`[sendTelegramVideo] Successfully uploaded video to Telegram. Message ID: ${data.result?.message_id}`)
       return data
     } catch (fetchError: any) {
       clearTimeout(timeoutId)
-      if (fetchError.name === 'AbortError') {
-        throw new Error('Video upload timeout (90 seconds)')
-      }
       throw fetchError
     }
   } catch (uploadError: any) {
-    // Only fallback to URL method if it's not a size-related error
-    const errorMsg = uploadError?.message || String(uploadError)
-    const isSizeError = errorMsg.includes('too large') || errorMsg.includes('size')
-    
-    if (!isSizeError) {
-      console.log(`[sendTelegramVideo] Direct upload failed, trying URL method (${absoluteUrl}): ${errorMsg}`)
-    } else {
-      console.log(`[sendTelegramVideo] File too large for direct upload, using URL method (${absoluteUrl}): ${errorMsg}`)
-    }
-    
-    // Ensure URL is properly formatted and accessible
-    // Telegram requires the URL to be publicly accessible and return the video directly
-    // For URL method, we need to download the video again to get dimensions
-    let urlDimensions: { width: number; height: number } | null = null
-    try {
-      const urlVideoResponse = await fetch(absoluteUrl, {
-        headers: {
-          'User-Agent': 'Mozilla/5.0 (compatible; TelegramBot/1.0)',
-          'Accept': 'video/*, */*',
-        },
-        redirect: 'follow',
-      })
-      if (urlVideoResponse.ok) {
-        const urlVideoBuffer = await urlVideoResponse.arrayBuffer()
-        const urlVideoBlob = Buffer.from(urlVideoBuffer)
-        urlDimensions = getVideoDimensions(urlVideoBlob)
-        if (urlDimensions) {
-          console.log(`[sendTelegramVideo] Extracted dimensions for URL method: ${urlDimensions.width}x${urlDimensions.height}`)
-        }
-      }
-    } catch (dimError) {
-      console.warn(`[sendTelegramVideo] Could not extract dimensions for URL method:`, dimError)
-    }
-    
     const payload: Record<string, unknown> = {
       chat_id: chatId,
       video: absoluteUrl,
       parse_mode: parseMode,
     }
+    if (options?.caption) payload.caption = options.caption
 
-    // Add width and height if we extracted them
-    if (urlDimensions) {
-      payload.width = urlDimensions.width
-      payload.height = urlDimensions.height
-    }
-
-    if (options?.caption) {
-      payload.caption = options.caption
-    }
-
-    console.log(`[sendTelegramVideo] Sending video via URL method: ${absoluteUrl}`)
-    
-    // Telegram may take time to fetch large videos, so use a longer timeout (60 seconds)
     const controller = new AbortController()
-    const timeoutId = setTimeout(() => controller.abort(), 60000) // 60 second timeout
+    const timeoutId = setTimeout(() => controller.abort(), 60000)
     
     try {
       const response = await fetch(`https://api.telegram.org/bot${botToken}/sendVideo`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
         signal: controller.signal,
       })
       
       clearTimeout(timeoutId)
-
-      console.log(`[sendTelegramVideo] URL method response status: ${response.status} ${response.statusText}`)
-
-      const responseText = await response.text().catch(() => 'Unable to read response')
-      
-      let data: any = null
-      try {
-        data = JSON.parse(responseText)
-      } catch (parseError) {
-        console.error(`[sendTelegramVideo] Failed to parse Telegram URL method response:`, parseError)
-        data = { ok: false, description: `Invalid JSON response: ${responseText.substring(0, 200)}` }
-      }
+      const data = await response.json()
 
       if (!response.ok || !data?.ok) {
-        const description = data?.description || `Telegram API error (${response.status})`
-        console.error(`[sendTelegramVideo] Telegram sendVideo URL method error for ${absoluteUrl}:`, {
-          status: response.status,
-          errorCode: data?.error_code,
-          description: data?.description,
-        })
-        throw new Error(description)
+        throw new Error(data?.description || `Telegram API error (${response.status})`)
       }
-
-      console.log(`[sendTelegramVideo] Successfully sent video via URL method. Message ID: ${data.result?.message_id}`)
       return data
     } catch (fetchError: any) {
       clearTimeout(timeoutId)
-      if (fetchError.name === 'AbortError') {
-        console.error(`[sendTelegramVideo] Request timeout after 60 seconds for ${absoluteUrl}`)
-        throw new Error('Telegram API request timeout - video file may be too large or server too slow')
-      }
       throw fetchError
     }
   }
@@ -551,9 +334,6 @@ export async function sendTelegramMediaGroup(chatId: string, media: MediaGroupIt
   })
 }
 
-/**
- * Get chat member info (to verify admin status)
- */
 type ChatMemberResponse = {
   result?: {
     status?: string
@@ -567,9 +347,6 @@ export async function getChatMember(chatId: string, userId: string) {
   })
 }
 
-/**
- * Check if user is admin in chat
- */
 export async function isChatAdmin(chatId: string, userId: string): Promise<boolean> {
   try {
     const result = await getChatMember(chatId, userId)

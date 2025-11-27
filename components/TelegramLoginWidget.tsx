@@ -26,10 +26,6 @@ export default function TelegramLoginWidget({
   useEffect(() => {
     if (!containerRef.current || !botName) return
 
-    // Log for debugging
-    console.log('[TelegramLoginWidget] Initializing with bot:', botName)
-    console.log('[TelegramLoginWidget] NEXT_PUBLIC_TELEGRAM_BOT_USERNAME:', process.env.NEXT_PUBLIC_TELEGRAM_BOT_USERNAME)
-
     // Clear container
     containerRef.current.innerHTML = ""
 
@@ -37,9 +33,6 @@ export default function TelegramLoginWidget({
     const script = document.createElement("script")
     script.src = "https://telegram.org/js/telegram-widget.js?22"
     script.setAttribute("data-telegram-login", botName)
-    
-    // Log the actual attribute value
-    console.log('[TelegramLoginWidget] Script data-telegram-login attribute:', script.getAttribute("data-telegram-login"))
     script.setAttribute("data-size", size)
     script.setAttribute("data-request-access", requestAccess)
     script.setAttribute("data-userpic", usePic.toString())
@@ -48,23 +41,26 @@ export default function TelegramLoginWidget({
       script.setAttribute("data-radius", cornerRadius.toString())
     }
     
-    // Set callback function - Telegram widget will call this with user data
+    // Set callback function
     const baseUrl = typeof window !== "undefined" ? window.location.origin : ""
     const widgetCallbackUrl = callbackUrl || `${baseUrl}/api/auth/telegram/widget`
     
     // Create wrapper function for callback
     ;(window as any).onTelegramAuth = (user: any) => {
-      // Redirect to our callback handler with the user data
-      const params = new URLSearchParams({
+      // Only include fields that actually exist
+      const userData: Record<string, string> = {
         id: user.id.toString(),
         first_name: user.first_name,
-        last_name: user.last_name || "",
-        username: user.username || "",
-        photo_url: user.photo_url || "",
         auth_date: user.auth_date.toString(),
         hash: user.hash,
-      })
-      
+      }
+
+      // Optional fields - only add if they exist
+      if (user.last_name) userData.last_name = user.last_name
+      if (user.username) userData.username = user.username
+      if (user.photo_url) userData.photo_url = user.photo_url
+
+      const params = new URLSearchParams(userData)
       window.location.href = `${widgetCallbackUrl}?${params.toString()}`
     }
     
@@ -73,7 +69,6 @@ export default function TelegramLoginWidget({
     containerRef.current.appendChild(script)
 
     return () => {
-      // Cleanup
       if ((window as any).onTelegramAuth) {
         delete (window as any).onTelegramAuth
       }
@@ -82,4 +77,3 @@ export default function TelegramLoginWidget({
 
   return <div ref={containerRef} className="flex justify-center" />
 }
-
