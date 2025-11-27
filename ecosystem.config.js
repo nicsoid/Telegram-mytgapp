@@ -3,13 +3,14 @@ module.exports = {
     {
       name: 'mytgapp-web',
       script: 'node_modules/next/dist/bin/next',
-      args: 'start',
+      args: 'start -H 0.0.0.0',
       cwd: process.cwd(),
       instances: 1,
       exec_mode: 'fork',
       env: {
         NODE_ENV: 'production',
         PORT: 3002,
+        HOSTNAME: '0.0.0.0',
       },
       error_file: './logs/mytgapp-web-error.log',
       out_file: './logs/mytgapp-web-out.log',
