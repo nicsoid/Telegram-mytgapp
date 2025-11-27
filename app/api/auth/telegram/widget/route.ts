@@ -31,11 +31,23 @@ export async function GET(request: NextRequest) {
     }
 
     // Verify Telegram widget data
+    console.log('[widget] Received widget data:', {
+      keys: Object.keys(widgetData),
+      hasHash: !!widgetData.hash,
+      botTokenConfigured: !!botToken,
+    })
+    
     if (!verifyTelegramWidgetData(widgetData, botToken)) {
+      console.error('[widget] Verification failed for data:', {
+        keys: Object.keys(widgetData),
+        hash: widgetData.hash?.substring(0, 10) + '...',
+      })
       return NextResponse.redirect(
         new URL("/auth/signin?error=invalid_telegram_data", getBaseUrl(request))
       )
     }
+    
+    console.log('[widget] Verification successful')
 
     // Parse user data
     const telegramUser = parseTelegramWidgetData(widgetData)

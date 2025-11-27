@@ -50,7 +50,10 @@ export function verifyTelegramWebAppData(initData: string, botToken: string): bo
 export function verifyTelegramWidgetData(data: Record<string, string>, botToken: string): boolean {
   try {
     const hash = data.hash
-    if (!hash) return false
+    if (!hash) {
+      console.error('[verifyTelegramWidgetData] Missing hash in data')
+      return false
+    }
 
     // Create data check string
     const dataCheckString = Object.keys(data)
@@ -71,8 +74,20 @@ export function verifyTelegramWidgetData(data: Record<string, string>, botToken:
       .update(dataCheckString)
       .digest('hex')
 
-    return calculatedHash === hash
-  } catch {
+    const isValid = calculatedHash === hash
+    
+    if (!isValid) {
+      console.error('[verifyTelegramWidgetData] Hash mismatch', {
+        received: hash,
+        calculated: calculatedHash,
+        dataCheckString,
+        dataKeys: Object.keys(data).filter(k => k !== 'hash'),
+      })
+    }
+
+    return isValid
+  } catch (error) {
+    console.error('[verifyTelegramWidgetData] Error:', error)
     return false
   }
 }
