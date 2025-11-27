@@ -23,7 +23,6 @@ console.log('=== Bot Token Verification ===')
 console.log(`Bot ID: ${botId}`)
 console.log(`Token preview: ${botToken.substring(0, 20)}...`)
 console.log(`Expected username: ${expectedBotUsername || 'NOT SET'}`)
-console.log()
 
 // Call Telegram API to verify
 (async () => {
@@ -41,7 +40,6 @@ console.log()
     console.log(`   Bot ID: ${bot.id}`)
     console.log(`   Username: @${bot.username}`)
     console.log(`   Name: ${bot.first_name}`)
-    console.log()
     
     if (expectedBotUsername) {
       const expected = expectedBotUsername.replace('@', '').toLowerCase()
@@ -53,7 +51,6 @@ console.log()
         console.error(`❌ Bot username mismatch!`)
         console.error(`   Expected: @${expectedBotUsername}`)
         console.error(`   Actual: @${bot.username}`)
-        console.error()
         console.error('This is the problem! The bot token belongs to a different bot than expected.')
         console.error('Make sure TELEGRAM_BOT_TOKEN in .env matches the bot configured in the Telegram Login Widget.')
         process.exit(1)
@@ -62,7 +59,6 @@ console.log()
       console.warn('⚠️  Cannot verify username match - TELEGRAM_BOT_USERNAME not set')
     }
     
-    console.log()
     console.log('✅ All checks passed!')
   } catch (error) {
     console.error('❌ Failed to verify bot token:', error)
