@@ -71,6 +71,12 @@ export function verifyTelegramWidgetData(data: Record<string, string>, botToken:
       .map(key => `${key}=${data[key]}`)
       .join('\n')
 
+    console.log('[verifyTelegramWidgetData] Hash calculation details:', {
+      dataCheckString: dataCheckString,
+      dataCheckStringLength: dataCheckString.length,
+      sortedKeys: Object.keys(data).filter(key => key !== 'hash').sort(),
+    })
+
     // Create secret key
     const secretKey = crypto
       .createHash('sha256')
@@ -82,6 +88,12 @@ export function verifyTelegramWidgetData(data: Record<string, string>, botToken:
       .createHmac('sha256', secretKey)
       .update(dataCheckString)
       .digest('hex')
+    
+    console.log('[verifyTelegramWidgetData] Hash calculation:', {
+      secretKeyLength: secretKey.length,
+      calculatedHash: calculatedHash,
+      receivedHash: hash,
+    })
 
     const isValid = calculatedHash === hash
     

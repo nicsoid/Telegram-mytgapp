@@ -78,8 +78,29 @@ export async function GET(request: NextRequest) {
     // Check if auth_date is recent (within 24 hours)
     const authDate = new Date(telegramUser.auth_date * 1000)
     const now = new Date()
+    const serverTime = Math.floor(now.getTime() / 1000)
     const hoursDiff = (now.getTime() - authDate.getTime()) / (1000 * 60 * 60)
-    if (hoursDiff > 24) {
+    
+    console.log('[widget] Time check:', {
+      serverTime: serverTime,
+      serverTimeISO: now.toISOString(),
+      authDate: telegramUser.auth_date,
+      authDateISO: authDate.toISOString(),
+      timeDiffSeconds: serverTime - telegramUser.auth_date,
+      timeDiffHours: hoursDiff.toFixed(2),
+      timeDiffMinutes: ((now.getTime() - authDate.getTime()) / (1000 * 60)).toFixed(2),
+    })
+    
+    // Temporarily disable auth_date validation for testing (set DISABLE_AUTH_DATE_CHECK=true in .env)
+    const disableAuthDateCheck = process.env.DISABLE_AUTH_DATE_CHECK === 'true'
+    if (disableAuthDateCheck) {
+      console.warn('[widget] ⚠️  Auth date validation is DISABLED for testing')
+    } else if (hoursDiff > 24) {
+      console.error('[widget] Auth date expired:', {
+        hoursDiff: hoursDiff.toFixed(2),
+        authDate: authDate.toISOString(),
+        serverTime: now.toISOString(),
+      })
       return NextResponse.redirect(
         new URL("/auth/signin?error=expired_auth", getBaseUrl(request))
       )
