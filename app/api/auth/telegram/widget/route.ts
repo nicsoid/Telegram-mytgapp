@@ -17,11 +17,18 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)
     
-    // Get all query parameters
+    // Get all query parameters - log raw values to see exactly what Telegram sent
     const widgetData: Record<string, string> = {}
+    const rawParams: Record<string, string> = {}
     searchParams.forEach((value, key) => {
       widgetData[key] = value
+      rawParams[key] = value
+      // Log each parameter with its exact value and byte representation
+      console.log(`[widget] Raw param: ${key} = "${value}" (bytes: ${Array.from(Buffer.from(value, 'utf8')).join(',')})`)
     })
+    
+    console.log('[widget] All raw parameters received:', rawParams)
+    console.log('[widget] Full URL:', request.url)
 
     const botToken = process.env.TELEGRAM_BOT_TOKEN
     if (!botToken) {
