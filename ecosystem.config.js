@@ -1,16 +1,27 @@
+const path = require('path')
+const projectRoot = __dirname
+
+// Ensure .env is loaded relative to this file (works on server and locally)
+require('dotenv').config({ path: path.join(projectRoot, '.env') })
+
 module.exports = {
   apps: [
     {
       name: 'mytgapp-web',
       script: 'node_modules/next/dist/bin/next',
       args: 'start -H 0.0.0.0',
-      cwd: process.cwd(),
+      cwd: projectRoot,
       instances: 1,
       exec_mode: 'fork',
       env: {
         NODE_ENV: 'production',
         PORT: 3002,
         HOSTNAME: '0.0.0.0',
+        TELEGRAM_BOT_TOKEN: process.env.TELEGRAM_BOT_TOKEN,
+        NEXT_PUBLIC_TELEGRAM_BOT_USERNAME: process.env.NEXT_PUBLIC_TELEGRAM_BOT_USERNAME,
+        NEXTAUTH_URL: process.env.NEXTAUTH_URL,
+        AUTH_URL: process.env.AUTH_URL,
+        DATABASE_URL: process.env.DATABASE_URL,
       },
       error_file: './logs/mytgapp-web-error.log',
       out_file: './logs/mytgapp-web-out.log',
@@ -25,11 +36,13 @@ module.exports = {
       name: 'mytgapp-bot',
       script: 'node_modules/.bin/tsx',
       args: 'scripts/telegram-bot.ts',
-      cwd: process.cwd(),
+      cwd: projectRoot,
       instances: 1,
       exec_mode: 'fork',
       env: {
         NODE_ENV: 'production',
+        TELEGRAM_BOT_TOKEN: process.env.TELEGRAM_BOT_TOKEN,
+        DATABASE_URL: process.env.DATABASE_URL,
       },
       error_file: './logs/mytgapp-bot-error.log',
       out_file: './logs/mytgapp-bot-out.log',
