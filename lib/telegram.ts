@@ -64,35 +64,58 @@ export function verifyTelegramWidgetData(data: Record<string, string>, botToken:
       tokenLength: botToken?.length || 0,
     })
 
-    // Create data check string
-    const dataCheckString = Object.keys(data)
+    // Create data check string - CRITICAL: Must match Telegram's exact format
+    // Telegram sorts keys alphabetically and joins with \n (newline)
+    const sortedKeys = Object.keys(data)
       .filter(key => key !== 'hash')
       .sort()
+    
+    const dataCheckString = sortedKeys
       .map(key => `${key}=${data[key]}`)
       .join('\n')
 
+    // Log the exact bytes being hashed (for debugging)
+    const dataCheckStringBytes = Buffer.from(dataCheckString, 'utf8')
+    
     console.log('[verifyTelegramWidgetData] Hash calculation details:', {
-      dataCheckString: dataCheckString,
+      sortedKeys: sortedKeys,
+      dataCheckString: JSON.stringify(dataCheckString), // Shows \n as literal
+      dataCheckStringRaw: dataCheckString, // Shows actual newlines
       dataCheckStringLength: dataCheckString.length,
-      sortedKeys: Object.keys(data).filter(key => key !== 'hash').sort(),
+      dataCheckStringBytes: Array.from(dataCheckStringBytes), // Show byte values
+      eachField: sortedKeys.map(key => ({
+        key,
+        value: data[key],
+        fieldString: `${key}=${data[key]}`,
+        fieldBytes: Array.from(Buffer.from(`${key}=${data[key]}`, 'utf8')),
+      })),
     })
 
-    // Create secret key
+    // Create secret key - SHA256 of bot token
     const secretKey = crypto
       .createHash('sha256')
       .update(botToken)
       .digest()
+    
+    console.log('[verifyTelegramWidgetData] Secret key:', {
+      secretKeyHex: secretKey.toString('hex'),
+      secretKeyLength: secretKey.length,
+      botTokenLength: botToken.length,
+      botTokenPreview: botToken.substring(0, 20) + '...',
+    })
 
-    // Calculate hash
+    // Calculate hash - HMAC-SHA256 of data check string using secret key
     const calculatedHash = crypto
       .createHmac('sha256', secretKey)
-      .update(dataCheckString)
+      .update(dataCheckString, 'utf8') // Explicitly specify UTF-8
       .digest('hex')
     
-    console.log('[verifyTelegramWidgetData] Hash calculation:', {
-      secretKeyLength: secretKey.length,
+    console.log('[verifyTelegramWidgetData] Hash calculation result:', {
       calculatedHash: calculatedHash,
       receivedHash: hash,
+      match: calculatedHash === hash,
+      hashLength: calculatedHash.length,
+      receivedHashLength: hash.length,
     })
 
     const isValid = calculatedHash === hash
