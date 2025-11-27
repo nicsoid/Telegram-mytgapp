@@ -22,7 +22,7 @@ module.exports = {
     },
     {
       name: 'mytgapp-bot',
-      script: 'tsx',
+      script: 'node_modules/.bin/tsx',
       args: 'scripts/telegram-bot.ts',
       cwd: process.cwd(),
       instances: 1,
