@@ -1,9 +1,6 @@
 const path = require('path')
 const projectRoot = __dirname
 
-// Ensure .env is loaded relative to this file (works on server and locally)
-require('dotenv').config({ path: path.join(projectRoot, '.env') })
-
 module.exports = {
   apps: [
     {
@@ -18,6 +15,7 @@ module.exports = {
         PORT: 3002,
         HOSTNAME: '0.0.0.0',
         TELEGRAM_BOT_TOKEN: process.env.TELEGRAM_BOT_TOKEN,
+        TELEGRAM_BOT_USERNAME: process.env.TELEGRAM_BOT_USERNAME,
         NEXT_PUBLIC_TELEGRAM_BOT_USERNAME: process.env.NEXT_PUBLIC_TELEGRAM_BOT_USERNAME,
         NEXTAUTH_URL: process.env.NEXTAUTH_URL,
         AUTH_URL: process.env.AUTH_URL,
@@ -42,6 +40,7 @@ module.exports = {
       env: {
         NODE_ENV: 'production',
         TELEGRAM_BOT_TOKEN: process.env.TELEGRAM_BOT_TOKEN,
+        TELEGRAM_BOT_USERNAME: process.env.TELEGRAM_BOT_USERNAME,
         DATABASE_URL: process.env.DATABASE_URL,
       },
       error_file: './logs/mytgapp-bot-error.log',
