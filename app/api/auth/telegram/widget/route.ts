@@ -3,6 +3,16 @@ import { verifyTelegramWidgetData, parseTelegramWidgetData } from "@/lib/telegra
 import { prisma } from "@/lib/prisma"
 import { signIn } from "@/lib/auth"
 
+// Helper function to get base URL from environment or request headers
+function getBaseUrl(request: NextRequest): string {
+  return process.env.NEXT_PUBLIC_APP_URL || 
+         process.env.AUTH_URL || 
+         process.env.NEXTAUTH_URL ||
+         (request.headers.get('x-forwarded-proto') && request.headers.get('host') 
+           ? `${request.headers.get('x-forwarded-proto')}://${request.headers.get('host')}`
+           : request.url.split('/api')[0])
+}
+
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)
@@ -16,14 +26,14 @@ export async function GET(request: NextRequest) {
     const botToken = process.env.TELEGRAM_BOT_TOKEN
     if (!botToken) {
       return NextResponse.redirect(
-        new URL("/auth/signin?error=bot_token_not_configured", request.url)
+        new URL("/auth/signin?error=bot_token_not_configured", getBaseUrl(request))
       )
     }
 
     // Verify Telegram widget data
     if (!verifyTelegramWidgetData(widgetData, botToken)) {
       return NextResponse.redirect(
-        new URL("/auth/signin?error=invalid_telegram_data", request.url)
+        new URL("/auth/signin?error=invalid_telegram_data", getBaseUrl(request))
       )
     }
 
@@ -31,7 +41,7 @@ export async function GET(request: NextRequest) {
     const telegramUser = parseTelegramWidgetData(widgetData)
     if (!telegramUser) {
       return NextResponse.redirect(
-        new URL("/auth/signin?error=failed_to_parse_data", request.url)
+        new URL("/auth/signin?error=failed_to_parse_data", getBaseUrl(request))
       )
     }
 
@@ -41,7 +51,7 @@ export async function GET(request: NextRequest) {
     const hoursDiff = (now.getTime() - authDate.getTime()) / (1000 * 60 * 60)
     if (hoursDiff > 24) {
       return NextResponse.redirect(
-        new URL("/auth/signin?error=expired_auth", request.url)
+        new URL("/auth/signin?error=expired_auth", getBaseUrl(request))
       )
     }
 
@@ -83,7 +93,7 @@ export async function GET(request: NextRequest) {
     
     // Store in a cookie or redirect with token
     const response = NextResponse.redirect(
-      new URL(`/auth/signin?widget_token=${authToken}&callbackUrl=${encodeURIComponent(callbackUrl)}`, request.url)
+      new URL(`/auth/signin?widget_token=${authToken}&callbackUrl=${encodeURIComponent(callbackUrl)}`, getBaseUrl(request))
     )
     
     // Set a secure cookie with the auth token (expires in 5 minutes)
@@ -98,7 +108,7 @@ export async function GET(request: NextRequest) {
   } catch (error) {
     console.error("Telegram widget auth error:", error)
     return NextResponse.redirect(
-      new URL("/auth/signin?error=authentication_failed", request.url)
+      new URL("/auth/signin?error=authentication_failed", getBaseUrl(request))
     )
   }
 }
