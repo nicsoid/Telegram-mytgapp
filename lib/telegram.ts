@@ -55,6 +55,15 @@ export function verifyTelegramWidgetData(data: Record<string, string>, botToken:
       return false
     }
 
+    // Log bot token info (first 20 chars for security)
+    const botTokenPreview = botToken ? `${botToken.substring(0, 20)}...` : 'MISSING'
+    const botId = botToken ? botToken.split(':')[0] : 'UNKNOWN'
+    console.log('[verifyTelegramWidgetData] Using bot token:', {
+      preview: botTokenPreview,
+      botId: botId,
+      tokenLength: botToken?.length || 0,
+    })
+
     // Create data check string
     const dataCheckString = Object.keys(data)
       .filter(key => key !== 'hash')
@@ -82,6 +91,12 @@ export function verifyTelegramWidgetData(data: Record<string, string>, botToken:
         calculated: calculatedHash,
         dataCheckString,
         dataKeys: Object.keys(data).filter(k => k !== 'hash'),
+        botTokenPreview: botTokenPreview,
+        botId: botId,
+      })
+    } else {
+      console.log('[verifyTelegramWidgetData] Hash verification successful', {
+        botId: botId,
       })
     }
 

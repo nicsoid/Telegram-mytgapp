@@ -25,6 +25,7 @@ export async function GET(request: NextRequest) {
 
     const botToken = process.env.TELEGRAM_BOT_TOKEN
     if (!botToken) {
+      console.error('[widget] TELEGRAM_BOT_TOKEN is not set in environment')
       return NextResponse.redirect(
         new URL("/auth/signin?error=bot_token_not_configured", getBaseUrl(request))
       )
@@ -34,11 +35,24 @@ export async function GET(request: NextRequest) {
       console.warn("[widget] TELEGRAM_BOT_TOKEN has leading/trailing whitespace. Trimmed automatically.")
     }
 
+    // Log environment info for debugging
+    const botId = normalizedBotToken.split(':')[0]
+    const expectedBotUsername = process.env.TELEGRAM_BOT_USERNAME || process.env.NEXT_PUBLIC_TELEGRAM_BOT_USERNAME
+    console.log('[widget] Environment check:', {
+      botId: botId,
+      botTokenLength: normalizedBotToken.length,
+      expectedBotUsername: expectedBotUsername || 'NOT SET',
+      TELEGRAM_BOT_USERNAME: process.env.TELEGRAM_BOT_USERNAME || 'NOT SET',
+      NEXT_PUBLIC_TELEGRAM_BOT_USERNAME: process.env.NEXT_PUBLIC_TELEGRAM_BOT_USERNAME || 'NOT SET',
+    })
+
     // Verify Telegram widget data
     console.log('[widget] Received widget data:', {
       keys: Object.keys(widgetData),
       hasHash: !!widgetData.hash,
       botTokenConfigured: !!normalizedBotToken,
+      userId: widgetData.id,
+      username: widgetData.username,
     })
     
     if (!verifyTelegramWidgetData(widgetData, normalizedBotToken)) {
