@@ -89,10 +89,22 @@ async function main() {
     }
     
     console.log('')
+    console.log('=== IMPORTANT: Domain Configuration ===')
+    console.log('The Telegram Login Widget requires the domain to be set with BotFather!')
+    console.log('')
+    console.log('To fix this:')
+    console.log('1. Open Telegram and message @BotFather')
+    console.log('2. Send: /setdomain')
+    console.log('3. Select your bot: @igramposter_bot')
+    console.log('4. Add your domain: mytgapp.com')
+    console.log('')
+    console.log('Without this, Telegram may sign the widget with a different token!')
+    console.log('')
     console.log('=== Next Steps ===')
-    console.log('1. Check your signin page - what bot name is in the TelegramLoginWidget component?')
-    console.log('2. It should be: botName="igramposter_bot"')
-    console.log('3. If it\'s different, that\'s the problem!')
+    console.log('1. Verify domain is set with BotFather (/setdomain)')
+    console.log('2. Check your signin page - what bot name is in the TelegramLoginWidget component?')
+    console.log('3. It should be: botName="igramposter_bot"')
+    console.log('4. If domain is not set, that\'s likely the problem!')
   } else {
     console.log('✅ Current bot token matches!')
   }
