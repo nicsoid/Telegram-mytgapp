@@ -79,6 +79,12 @@ function verifyWidgetData(data: WidgetArgs, botToken: string) {
 
 async function main() {
   try {
+    console.log("=== Environment ===")
+    console.log("TELEGRAM_BOT_TOKEN:", process.env.TELEGRAM_BOT_TOKEN)
+    console.log("NEXT_PUBLIC_TELEGRAM_BOT_USERNAME:", process.env.NEXT_PUBLIC_TELEGRAM_BOT_USERNAME)
+    console.log("TELEGRAM_BOT_USERNAME:", process.env.TELEGRAM_BOT_USERNAME)
+    console.log("===================")
+
     const token = process.env.TELEGRAM_BOT_TOKEN
     if (!token) {
       throw new Error("TELEGRAM_BOT_TOKEN is not set (export it before running)")
