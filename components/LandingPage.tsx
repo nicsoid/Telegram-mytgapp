@@ -2,37 +2,17 @@
 
 import Link from "next/link"
 import { useSession, signOut } from "next-auth/react"
-import { useRouter } from "next/navigation"
 
 export default function LandingPage() {
   const { data: session } = useSession()
-  const router = useRouter()
   const displayName =
     session?.user?.name ||
     session?.user?.telegramUsername ||
     session?.user?.email ||
     "Member"
 
-  const appPath =
-    session?.user?.role === "ADMIN"
-      ? "/admin"
-      : false // All users go to /app now
-        ? "/dashboard"
-        : "/app"
-
-  const appLabel =
-    session?.user?.role === "ADMIN"
-      ? "Open Admin"
-      : false // All users go to /app now
-        ? "Open Dashboard"
-        : "Open App"
-
   const handleSignOut = () => {
     signOut({ callbackUrl: "/" })
-  }
-
-  const handleGoToApp = () => {
-    router.push(appPath)
   }
 
   return (
@@ -52,12 +32,20 @@ export default function LandingPage() {
                   <span className="hidden sm:block text-sm text-gray-600">
                     Signed in as <span className="font-medium text-gray-900">{displayName}</span>
                   </span>
-                  <button
-                    onClick={handleGoToApp}
+                  <Link
+                    href="/app"
                     className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"
                   >
-                    {appLabel}
-                  </button>
+                    User Area
+                  </Link>
+                  {session.user.role === "ADMIN" && (
+                    <Link
+                      href="/admin"
+                      className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors text-sm font-medium"
+                    >
+                      Admin Area
+                    </Link>
+                  )}
                   <button
                     onClick={handleSignOut}
                     className="px-3 py-2 text-sm text-gray-500 hover:text-gray-900 transition-colors"

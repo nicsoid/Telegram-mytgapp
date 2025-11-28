@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from "react"
 import { useSession } from "next-auth/react"
-import { useRouter } from "next/navigation"
 import LandingPage from "@/components/LandingPage"
 import TelegramMiniAppPage from "@/app/(telegram)/page"
 import TelegramLayout from "@/app/(telegram)/layout"
@@ -11,7 +10,6 @@ import TelegramLayout from "@/app/(telegram)/layout"
 // If yes, show Mini App with Telegram layout (auto-auth); if no, show landing page
 export default function HomePage() {
   const { data: session, status } = useSession()
-  const router = useRouter()
   const [isTelegram, setIsTelegram] = useState(false)
   const [isClient, setIsClient] = useState(false)
   const [scriptLoaded, setScriptLoaded] = useState(false)
@@ -67,13 +65,8 @@ export default function HomePage() {
     }
   }, [])
 
-  // If user is logged in and not in Telegram, redirect to app
-  useEffect(() => {
-    if (isClient && !isTelegram && scriptLoaded && session?.user && status === "authenticated") {
-      // User is logged in on web, redirect to app
-      router.push("/app")
-    }
-  }, [isClient, isTelegram, scriptLoaded, session, status, router])
+  // Don't redirect - always show landing page in browser
+  // Users can navigate to /app for user area or /admin for admin area
 
   // Show loading while detecting or while session is loading
   if (!isClient || !scriptLoaded || status === "loading") {
