@@ -207,26 +207,30 @@ export default function GroupsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <header className="bg-white shadow-sm">
-        <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-6 sm:px-6 lg:px-8">
-          <div>
-            <p className="text-xs text-gray-500">MyTgApp</p>
-            <h1 className="text-3xl font-semibold text-gray-900">My Telegram Groups</h1>
-            <p className="text-sm text-gray-500">Add new groups and track verification status.</p>
-          </div>
-          <Link
-            href="/app"
-            className="rounded-full border border-gray-200 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100"
-          >
-            ← Back to overview
-          </Link>
+    <div className="space-y-8">
+      {/* Page Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900">Telegram Groups</h1>
+          <p className="mt-2 text-gray-600">Manage your groups and track verification status</p>
         </div>
-      </header>
-
-      <main className="mx-auto max-w-6xl px-4 py-10 sm:px-6 lg:px-8">
-        <div className="grid gap-8">
-          <section className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
+        <div className="flex items-center space-x-4">
+          <div className="rounded-lg bg-gradient-to-br from-purple-50 to-indigo-50 px-4 py-2">
+            <div className="text-xs font-medium text-gray-500">Verified</div>
+            <div className="text-lg font-bold text-purple-700">
+              {verifiedCount} / {groups.length}
+            </div>
+          </div>
+          <button
+            onClick={loadGroups}
+            className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm transition-all hover:bg-gray-50"
+          >
+            🔄 Refresh
+          </button>
+        </div>
+      </div>
+      {/* Telegram Verification Section */}
+      <section className="rounded-2xl border border-gray-200 bg-white p-8 shadow-lg">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
@@ -242,9 +246,10 @@ export default function GroupsPage() {
                 </p>
               </div>
               {verification.verifiedAt && (
-                <span className="rounded-full bg-green-100 px-3 py-1 text-xs font-semibold text-green-800">
-                  Verified
-                </span>
+                <div className="flex items-center space-x-2 rounded-full bg-gradient-to-r from-green-100 to-emerald-100 px-4 py-2">
+                  <span className="text-green-600">✓</span>
+                  <span className="text-sm font-semibold text-green-800">Verified</span>
+                </div>
               )}
             </div>
             {verificationMessage && (
@@ -262,20 +267,20 @@ export default function GroupsPage() {
                   </p>
                   <button
                     onClick={handleGenerateCode}
-                    className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-60"
+                    className="rounded-lg bg-gradient-to-r from-blue-600 to-indigo-600 px-6 py-3 text-sm font-semibold text-white shadow-md transition-all hover:from-blue-700 hover:to-indigo-700 hover:shadow-lg disabled:opacity-60"
                     disabled={verification.loading}
                   >
-                    Generate code
+                    {verification.loading ? "Generating..." : "Generate Code"}
                   </button>
                   {verification.code && (
-                    <div className="rounded-xl border border-dashed border-gray-300 bg-gray-50 p-4 text-center">
-                      <p className="text-xs uppercase tracking-wide text-gray-500">Verification code</p>
-                      <p className="mt-1 text-3xl font-mono font-semibold text-gray-900">
+                    <div className="rounded-xl border-2 border-dashed border-blue-300 bg-gradient-to-br from-blue-50 to-indigo-50 p-6 text-center">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-blue-600">Verification Code</p>
+                      <p className="mt-3 text-4xl font-mono font-bold text-gray-900 tracking-wider">
                         {verification.code}
                       </p>
                       {verification.expiresAt && (
-                        <p className="mt-2 text-xs text-gray-500">
-                          Expires {new Date(verification.expiresAt).toLocaleTimeString()}
+                        <p className="mt-3 text-xs text-gray-600">
+                          ⏰ Expires {new Date(verification.expiresAt).toLocaleTimeString()}
                         </p>
                       )}
                       {verification.deepLink && (
@@ -283,9 +288,10 @@ export default function GroupsPage() {
                           href={verification.deepLink}
                           target="_blank"
                           rel="noreferrer"
-                          className="mt-3 inline-flex items-center justify-center rounded-full bg-blue-100 px-3 py-1 text-xs font-semibold text-blue-800"
+                          className="mt-4 inline-flex items-center space-x-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition-all hover:bg-blue-700 hover:shadow-md"
                         >
-                          Open Telegram bot
+                          <span>📱</span>
+                          <span>Open Telegram Bot</span>
                         </a>
                       )}
                     </div>
@@ -298,101 +304,125 @@ export default function GroupsPage() {
                   </p>
                   <button
                     onClick={handleConfirmVerification}
-                    className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-100 disabled:opacity-60"
+                    className="w-full rounded-lg border-2 border-green-300 bg-gradient-to-r from-green-50 to-emerald-50 px-6 py-3 text-sm font-semibold text-green-700 transition-all hover:from-green-100 hover:to-emerald-100 hover:shadow-md disabled:opacity-60 disabled:cursor-not-allowed"
                     disabled={!verification.code}
                   >
-                    Confirm verification
+                    ✓ Confirm Verification
                   </button>
                 </div>
               </div>
             )}
           </section>
 
-          <div className="grid gap-8 lg:grid-cols-[2fr,1fr]">
-            <section className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h2 className="text-xl font-semibold text-gray-900">Active Groups</h2>
-                  <p className="text-sm text-gray-500">
-                    {verifiedCount} / {groups.length} verified
-                  </p>
-                </div>
-                <button
-                  onClick={loadGroups}
-                  className="rounded-full border border-gray-200 px-3 py-1 text-xs font-medium text-gray-600 hover:bg-gray-100"
-                >
-                  Refresh
-                </button>
-              </div>
+      <div className="grid gap-8 lg:grid-cols-[2fr,1fr]">
+        {/* Groups List */}
+        <section className="rounded-2xl border border-gray-200 bg-white p-6 shadow-lg">
+          <div className="mb-6 flex items-center justify-between">
+            <div>
+              <h2 className="text-xl font-bold text-gray-900">Your Groups</h2>
+              <p className="mt-1 text-sm text-gray-500">
+                {verifiedCount} verified of {groups.length} total
+              </p>
+            </div>
+          </div>
 
-              <div className="mt-6 space-y-4">
-                {loading ? (
-                  <p className="text-sm text-gray-500">Loading groups…</p>
-                ) : groups.length === 0 ? (
-                  <p className="text-sm text-gray-500">
-                    No groups yet. Add your first group using the form.
-                  </p>
-                ) : (
-                  groups.map((group) => (
-                    <div
-                      key={group.id}
-                      className="rounded-xl border border-gray-200 bg-white px-4 py-4 shadow-sm"
-                    >
-                      <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="space-y-4">
+            {loading ? (
+              <div className="flex items-center justify-center py-12">
+                <div className="text-gray-400">Loading groups…</div>
+              </div>
+            ) : groups.length === 0 ? (
+              <div className="rounded-xl border-2 border-dashed border-gray-300 bg-gray-50 p-12 text-center">
+                <div className="text-4xl mb-4">👥</div>
+                <p className="text-sm font-medium text-gray-900">No groups yet</p>
+                <p className="mt-1 text-xs text-gray-500">Add your first group using the form</p>
+              </div>
+            ) : (
+              groups.map((group) => (
+                <div
+                  key={group.id}
+                  className="group relative overflow-hidden rounded-xl border border-gray-200 bg-white p-5 shadow-sm transition-all hover:border-blue-300 hover:shadow-md"
+                >
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1">
+                      <div className="flex items-center space-x-3">
+                        <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-gradient-to-br from-purple-500 to-indigo-500 text-white font-bold">
+                          {group.name.charAt(0).toUpperCase()}
+                        </div>
                         <div>
-                          <p className="text-lg font-semibold text-gray-900">{group.name}</p>
+                          <h3 className="text-lg font-semibold text-gray-900">{group.name}</h3>
                           <p className="text-sm text-gray-500">
                             {group.username ? `@${group.username}` : group.telegramChatId}
                           </p>
                         </div>
-                        <span
-                          className={`rounded-full px-3 py-1 text-xs font-semibold ${
-                            group.isVerified
-                              ? "bg-green-100 text-green-800"
-                              : "bg-yellow-100 text-yellow-800"
-                          }`}
-                        >
-                          {group.isVerified ? "Verified" : "Pending"}
-                        </span>
                       </div>
                       {group.description && (
-                        <p className="mt-3 text-sm text-gray-600">{group.description}</p>
+                        <p className="mt-3 text-sm text-gray-600 line-clamp-2">{group.description}</p>
                       )}
-                      <div className="mt-4 flex flex-wrap items-center gap-4 text-sm text-gray-500">
-                        <span>€{group.pricePerPost} / post</span>
-                        <span>Free interval: {group.freePostIntervalDays} days</span>
-                        {!group.isVerified && group.verificationCode && (
-                          <span className="font-medium text-blue-600">
-                            Verification code: /verify {group.verificationCode}
-                          </span>
-                        )}
+                      <div className="mt-4 flex flex-wrap items-center gap-4">
+                        <div className="flex items-center space-x-1 text-sm text-gray-600">
+                          <span>💶</span>
+                          <span className="font-medium">€{group.pricePerPost}</span>
+                          <span className="text-gray-400">/ post</span>
+                        </div>
+                        <div className="flex items-center space-x-1 text-sm text-gray-600">
+                          <span>🆓</span>
+                          <span>Free every {group.freePostIntervalDays} days</span>
+                        </div>
                       </div>
+                      {!group.isVerified && group.verificationCode && (
+                        <div className="mt-4 rounded-lg bg-yellow-50 border border-yellow-200 p-3">
+                          <p className="text-xs font-medium text-yellow-800">Verification Required</p>
+                          <p className="mt-1 text-xs text-yellow-700 font-mono">
+                            /verify {group.verificationCode}
+                          </p>
+                        </div>
+                      )}
                     </div>
-                  ))
-                )}
-              </div>
-            </section>
+                    <div className="ml-4">
+                      <span
+                        className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold ${
+                          group.isVerified
+                            ? "bg-gradient-to-r from-green-100 to-emerald-100 text-green-800"
+                            : "bg-gradient-to-r from-yellow-100 to-amber-100 text-yellow-800"
+                        }`}
+                      >
+                        {group.isVerified ? "✓ Verified" : "⏳ Pending"}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </section>
 
-            <section className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
-              <h2 className="text-lg font-semibold text-gray-900">Add a new group</h2>
-              <p className="text-sm text-gray-500">
-                {canManageGroups
-                  ? "You must verify the group ownership via the Telegram bot."
-                  : "Verify your Telegram account to unlock group management."}
-              </p>
+        {/* Add Group Form */}
+        <section className="rounded-2xl border border-gray-200 bg-white p-6 shadow-lg">
+          <div className="mb-6">
+            <h2 className="text-xl font-bold text-gray-900">Add New Group</h2>
+            <p className="mt-1 text-sm text-gray-500">
+              {canManageGroups
+                ? "Add the bot to your group and verify ownership"
+                : "Verify your Telegram account first"}
+            </p>
+          </div>
 
-              {message && (
-                <div className="mt-4 rounded-lg bg-blue-50 p-3 text-sm text-blue-700">{message}</div>
-              )}
+          {message && (
+            <div className="mb-4 rounded-lg bg-blue-50 border border-blue-200 p-3 text-sm text-blue-700">
+              {message}
+            </div>
+          )}
 
-              <form onSubmit={handleSubmit} className="mt-6 space-y-4">
+          <form onSubmit={handleSubmit} className="space-y-4">
                 <div>
-                  <label className="text-sm font-medium text-gray-700">Group Name</label>
+                  <label className="block text-sm font-semibold text-gray-700 mb-1">Group Name</label>
                   <input
                     type="text"
                     value={form.name}
                     onChange={(e) => setForm((prev) => ({ ...prev, name: e.target.value }))}
-                    className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
+                    className="w-full rounded-lg border border-gray-300 px-4 py-2.5 text-sm transition-all focus:border-blue-500 focus:ring-2 focus:ring-blue-200 disabled:bg-gray-50 disabled:cursor-not-allowed"
+                    placeholder="My Awesome Group"
                     disabled={!canManageGroups}
                     required
                   />
@@ -462,15 +492,13 @@ export default function GroupsPage() {
                 <button
                   type="submit"
                   disabled={submitting || !canManageGroups}
-                  className="w-full rounded-lg bg-blue-600 px-4 py-3 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-60"
+                  className="w-full rounded-lg bg-gradient-to-r from-blue-600 to-indigo-600 px-6 py-3 text-sm font-semibold text-white shadow-md transition-all hover:from-blue-700 hover:to-indigo-700 hover:shadow-lg disabled:opacity-60 disabled:cursor-not-allowed"
                 >
-                  {submitting ? "Saving…" : canManageGroups ? "Add group" : "Verify Telegram to continue"}
+                  {submitting ? "⏳ Adding..." : canManageGroups ? "➕ Add Group" : "🔒 Verify Telegram First"}
                 </button>
-              </form>
-            </section>
-          </div>
-        </div>
-      </main>
+          </form>
+        </section>
+      </div>
     </div>
   )
 }

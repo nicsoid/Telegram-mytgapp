@@ -1,35 +1,65 @@
 "use client"
 
-import { useSession, signOut } from "next-auth/react"
+import { useSession } from "next-auth/react"
 import { useState, useEffect } from "react"
 import Link from "next/link"
+import { format } from "date-fns"
+
+type Stats = {
+  credits: number
+  groupsCount: number
+  verifiedGroupsCount: number
+  postsCount: number
+  scheduledPostsCount: number
+  sentPostsCount: number
+}
 
 export default function AppPage() {
   const { data: session } = useSession()
-  const [credits, setCredits] = useState(0)
+  const [stats, setStats] = useState<Stats>({
+    credits: 0,
+    groupsCount: 0,
+    verifiedGroupsCount: 0,
+    postsCount: 0,
+    scheduledPostsCount: 0,
+    sentPostsCount: 0,
+  })
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     if (session?.user) {
-      fetchCredits()
+      loadStats()
     }
   }, [session])
 
-  const fetchCredits = async () => {
+  const loadStats = async () => {
     try {
-      const res = await fetch("/api/credits/balance", { credentials: "include" })
-      if (res.ok) {
-        const data = await res.json()
-        setCredits(data.credits || 0)
-      }
+      const [creditsRes, groupsRes, postsRes] = await Promise.all([
+        fetch("/api/credits/balance", { credentials: "include" }),
+        fetch("/api/groups", { credentials: "include" }),
+        fetch("/api/posts", { credentials: "include" }),
+      ])
+
+      const credits = creditsRes.ok ? (await creditsRes.json()).credits || 0 : 0
+      const groups = groupsRes.ok ? (await groupsRes.json()).groups || [] : []
+      const posts = postsRes.ok ? (await postsRes.json()).posts || [] : []
+
+      setStats({
+        credits,
+        groupsCount: groups.length,
+        verifiedGroupsCount: groups.filter((g: any) => g.isVerified).length,
+        postsCount: posts.length,
+        scheduledPostsCount: posts.filter((p: any) => p.status === "SCHEDULED").length,
+        sentPostsCount: posts.filter((p: any) => p.status === "SENT").length,
+      })
     } catch (error) {
-      console.error("Failed to fetch credits", error)
+      console.error("Failed to load stats", error)
     } finally {
       setLoading(false)
     }
   }
 
-  const handleRequestCredits = async (publisherId?: string) => {
+  const handleRequestCredits = async () => {
     const amount = prompt("How many credits would you like to request?")
     if (!amount || isNaN(parseInt(amount))) return
 
@@ -43,16 +73,12 @@ export default function AppPage() {
         body: JSON.stringify({
           amount: parseInt(amount),
           reason,
-          publisherId, // Request from specific publisher if provided
         }),
       })
 
       if (res.ok) {
-        alert(
-          publisherId
-            ? "Credit request submitted to publisher!"
-            : "Credit request submitted to admin!"
-        )
+        alert("Credit request submitted to admin!")
+        loadStats()
       } else {
         const data = await res.json()
         alert(data.error || "Failed to submit request")
@@ -70,91 +96,162 @@ export default function AppPage() {
     )
   }
 
-  const displayName =
-    session.user.name ||
-    session.user.telegramUsername ||
-    session.user.email ||
-    "Member"
+  const statCards = [
+    {
+      title: "Credits",
+      value: loading ? "..." : stats.credits.toLocaleString(),
+      subtitle: "Available balance",
+      icon: "💳",
+      color: "from-blue-500 to-blue-600",
+      href: null,
+    },
+    {
+      title: "Groups",
+      value: loading ? "..." : `${stats.verifiedGroupsCount}/${stats.groupsCount}`,
+      subtitle: "Verified groups",
+      icon: "👥",
+      color: "from-purple-500 to-purple-600",
+      href: "/app/groups",
+    },
+    {
+      title: "Posts",
+      value: loading ? "..." : stats.postsCount,
+      subtitle: `${stats.scheduledPostsCount} scheduled, ${stats.sentPostsCount} sent`,
+      icon: "📝",
+      color: "from-green-500 to-green-600",
+      href: "/app/posts",
+    },
+  ]
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Top Nav */}
-      <header className="bg-white border-b border-gray-200 shadow-sm">
-        <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-4 sm:px-6 lg:px-8">
+    <div className="space-y-8">
+      {/* Welcome Header */}
+      <div className="rounded-2xl bg-gradient-to-br from-blue-600 via-indigo-600 to-purple-600 p-8 text-white shadow-xl">
+        <div className="flex items-center justify-between">
           <div>
-            <p className="text-xs text-gray-500">MyTgApp</p>
-            <h1 className="text-2xl font-semibold text-gray-900">Welcome, {displayName}</h1>
+            <h1 className="text-3xl font-bold">Welcome back!</h1>
+            <p className="mt-2 text-blue-100">
+              Manage your Telegram groups and schedule posts with ease.
+            </p>
           </div>
-          <nav className="flex items-center gap-3 text-sm">
-            <Link
-              href="/app"
-              className="rounded-full px-4 py-2 font-medium text-blue-600 hover:bg-blue-50"
+          <div className="hidden md:block">
+            <div className="rounded-full bg-white/20 p-4 text-4xl">🚀</div>
+          </div>
+        </div>
+      </div>
+
+      {/* Stats Grid */}
+      <div className="grid gap-6 md:grid-cols-3">
+        {statCards.map((card) => {
+          const content = (
+            <div
+              className={`group relative overflow-hidden rounded-xl bg-gradient-to-br ${card.color} p-6 text-white shadow-lg transition-all hover:scale-105 hover:shadow-xl`}
             >
-              Overview
+              <div className="relative z-10">
+                <div className="mb-4 flex items-center justify-between">
+                  <span className="text-3xl">{card.icon}</span>
+                  {card.href && (
+                    <svg
+                      className="h-5 w-5 opacity-0 transition-opacity group-hover:opacity-100"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M9 5l7 7-7 7"
+                      />
+                    </svg>
+                  )}
+                </div>
+                <div className="text-3xl font-bold">{card.value}</div>
+                <div className="mt-1 text-sm font-medium text-white/90">{card.title}</div>
+                <div className="mt-1 text-xs text-white/70">{card.subtitle}</div>
+              </div>
+              <div className="absolute -right-8 -top-8 h-24 w-24 rounded-full bg-white/10"></div>
+              <div className="absolute -bottom-8 -left-8 h-24 w-24 rounded-full bg-white/10"></div>
+            </div>
+          )
+
+          return card.href ? (
+            <Link key={card.title} href={card.href}>
+              {content}
+            </Link>
+          ) : (
+            <div key={card.title}>{content}</div>
+          )
+        })}
+      </div>
+
+      {/* Quick Actions */}
+      <div className="grid gap-6 md:grid-cols-2">
+        {/* Credits Card */}
+        <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-lg font-semibold text-gray-900">Credits Balance</h2>
+              <p className="mt-1 text-sm text-gray-500">Request credits from admin</p>
+            </div>
+            <div className="text-4xl">💳</div>
+          </div>
+          <div className="mt-6">
+            <div className="text-4xl font-bold text-gray-900">
+              {loading ? "..." : stats.credits.toLocaleString()}
+            </div>
+            <p className="mt-2 text-sm text-gray-500">Available credits</p>
+          </div>
+          <button
+            onClick={handleRequestCredits}
+            className="mt-6 w-full rounded-lg bg-gradient-to-r from-blue-600 to-indigo-600 px-4 py-3 text-sm font-semibold text-white shadow-sm transition-all hover:from-blue-700 hover:to-indigo-700 hover:shadow-md"
+          >
+            Request Credits
+          </button>
+        </div>
+
+        {/* Quick Actions */}
+        <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
+          <h2 className="text-lg font-semibold text-gray-900">Quick Actions</h2>
+          <div className="mt-6 space-y-3">
+            <Link
+              href="/app/groups"
+              className="flex items-center justify-between rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 text-sm font-medium text-gray-700 transition-all hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700"
+            >
+              <span className="flex items-center space-x-2">
+                <span>👥</span>
+                <span>Manage Groups</span>
+              </span>
+              <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+              </svg>
             </Link>
             <Link
               href="/app/posts"
-              className="rounded-full px-4 py-2 text-gray-600 hover:bg-gray-100"
+              className="flex items-center justify-between rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 text-sm font-medium text-gray-700 transition-all hover:border-green-300 hover:bg-green-50 hover:text-green-700"
             >
-              Posts
+              <span className="flex items-center space-x-2">
+                <span>📝</span>
+                <span>Schedule Posts</span>
+              </span>
+              <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+              </svg>
             </Link>
-            <button
-              onClick={() => signOut({ callbackUrl: "/" })}
-              className="rounded-full px-4 py-2 text-gray-500 hover:text-gray-900"
-            >
-              Log out
-            </button>
-          </nav>
-        </div>
-      </header>
-
-      <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
-        <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-          {/* Credits Card */}
-          <div className="rounded-lg border border-gray-200 bg-white p-6 shadow">
-            <h2 className="text-lg font-semibold text-gray-900">Credits</h2>
-            <div className="mt-4">
-              <div className="text-3xl font-bold text-gray-900">
-                {loading ? "..." : credits}
-              </div>
-              <p className="mt-2 text-sm text-gray-500">Available credits</p>
-            </div>
-            <div className="mt-6 space-y-2">
-              <button
-                onClick={(e) => {
-                  e.preventDefault()
-                  handleRequestCredits()
-                }}
-                className="w-full rounded bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700"
-              >
-                Request Credits from Admin
-              </button>
-              <p className="text-xs text-gray-500 text-center">
-                You can also request credits from publishers who manage groups you want to post in
-              </p>
-            </div>
-          </div>
-
-          {/* Quick Actions */}
-          <div className="rounded-lg border border-gray-200 bg-white p-6 shadow">
-            <h2 className="text-lg font-semibold text-gray-900">Quick Actions</h2>
-            <div className="mt-4 space-y-2">
+            {session.user.role === "ADMIN" && (
               <Link
-                href="/app/posts"
-                className="block rounded bg-gray-100 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-200"
+                href="/admin"
+                className="flex items-center justify-between rounded-lg border border-purple-200 bg-purple-50 px-4 py-3 text-sm font-medium text-purple-700 transition-all hover:border-purple-300 hover:bg-purple-100"
               >
-                View My Posts
+                <span className="flex items-center space-x-2">
+                  <span>⚙️</span>
+                  <span>Admin Dashboard</span>
+                </span>
+                <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                </svg>
               </Link>
-              <button
-                onClick={(e) => {
-                  e.preventDefault()
-                  handleRequestCredits()
-                }}
-                className="block w-full rounded bg-gray-100 px-4 py-2 text-left text-sm font-medium text-gray-700 hover:bg-gray-200"
-              >
-                Request Credits from Admin
-              </button>
-            </div>
+            )}
           </div>
         </div>
       </div>
