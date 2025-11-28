@@ -60,6 +60,13 @@ export default function AppPage() {
       const groups = groupsRes.ok ? (await groupsRes.json()).groups || [] : []
       const posts = postsRes.ok ? (await postsRes.json()).posts || [] : []
 
+      // Calculate revenue and spent from posts
+      const paidPosts = posts.filter((p: any) => p.isPaidAd && p.creditsPaid)
+      const totalSpent = paidPosts.reduce((sum: number, p: any) => sum + (p.creditsPaid || 0), 0)
+      
+      // Calculate revenue from groups (totalRevenue field)
+      const totalRevenue = groups.reduce((sum: number, g: any) => sum + (g.totalRevenue || 0), 0)
+
       setStats({
         credits,
         groupsCount: groups.length,
@@ -67,6 +74,10 @@ export default function AppPage() {
         postsCount: posts.length,
         scheduledPostsCount: posts.filter((p: any) => p.status === "SCHEDULED").length,
         sentPostsCount: posts.filter((p: any) => p.status === "SENT").length,
+        totalRevenue,
+        totalSpent,
+        subscriptionTier: session?.user?.subscriptionTier || "FREE",
+        subscriptionStatus: session?.user?.subscriptionStatus || "ACTIVE",
       })
     } catch (error) {
       console.error("Failed to load stats", error)
