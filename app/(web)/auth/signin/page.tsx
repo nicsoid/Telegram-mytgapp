@@ -92,7 +92,29 @@ function SignInForm() {
       if (result?.error) {
         setError("Failed to create session. Please try again.")
       } else if (result?.ok) {
-        const callbackUrl = searchParams.get("callbackUrl") || "/"
+        // Get callbackUrl and sanitize it to prevent redirect loops
+        let callbackUrl = searchParams.get("callbackUrl") || "/"
+        
+        // Prevent redirect loops - if callbackUrl is the signin page or contains widget_token, use "/"
+        try {
+          const callbackUrlObj = new URL(callbackUrl, window.location.origin)
+          if (callbackUrlObj.pathname.includes('/auth/signin') || callbackUrlObj.searchParams.has('widget_token')) {
+            callbackUrl = "/"
+          }
+        } catch {
+          // If URL parsing fails, check if it contains signin
+          if (callbackUrl.includes('/auth/signin') || callbackUrl.includes('widget_token')) {
+            callbackUrl = "/"
+          }
+        }
+        
+        // Clean up URL to prevent reprocessing
+        const newUrl = new URL(window.location.href)
+        newUrl.searchParams.delete('widget_token')
+        newUrl.searchParams.delete('callbackUrl')
+        window.history.replaceState({}, '', newUrl.toString())
+        
+        console.log('[signin] Redirecting to:', callbackUrl)
         router.push(callbackUrl)
         router.refresh()
       }

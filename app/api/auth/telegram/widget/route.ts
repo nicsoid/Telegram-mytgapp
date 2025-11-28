@@ -142,12 +142,15 @@ export async function GET(request: NextRequest) {
       })
     }
 
-    // Create a session by redirecting to a special endpoint that will handle NextAuth sign-in
-    // We'll use a one-time token stored in the database or use the user ID directly
-    const callbackUrl = searchParams.get("callbackUrl") || "/"
+    // Create a session by redirecting to signin page with widget token
+    // Always use "/" as callbackUrl to prevent redirect loops
+    // The widget doesn't need to preserve the original callbackUrl since it's a direct auth flow
+    const callbackUrl = "/"
     
     // Store a temporary auth token (we'll use a simple approach with user ID + timestamp hash)
     const authToken = Buffer.from(`${user.id}:${Date.now()}`).toString('base64')
+    
+    console.log('[widget] Redirecting to signin with token, user:', user.id)
     
     // Store in a cookie or redirect with token
     const response = NextResponse.redirect(
