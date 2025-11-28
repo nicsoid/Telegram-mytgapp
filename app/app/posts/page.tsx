@@ -45,7 +45,12 @@ export default function AppPostsPage() {
   const verifiedGroups = useMemo(() => groups.filter((g) => g.isVerified), [groups])
 
   useEffect(() => {
-    if (session?.user) {
+    // Wait for session status to be determined
+    if (status === "loading") {
+      return // Still loading, don't do anything
+    }
+    
+    if (status === "authenticated" && session?.user) {
       loadGroups()
       loadPosts()
     } else if (status === "unauthenticated") {

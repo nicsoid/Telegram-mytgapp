@@ -14,11 +14,20 @@ export default function AppLayout({ children }: AppLayoutProps) {
   const pathname = usePathname()
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
 
-  const displayName =
-    session?.user?.name ||
-    session?.user?.telegramUsername ||
-    session?.user?.email ||
-    "Member"
+  const displayName = (() => {
+    if (!session?.user) return "Member"
+    const name = session.user.name
+    const telegramUsername = session.user.telegramUsername
+    const email = session.user.email
+    
+    if (name && telegramUsername) {
+      return `${name} (@${telegramUsername})`
+    }
+    if (telegramUsername) {
+      return `@${telegramUsername}`
+    }
+    return name || email || "Member"
+  })()
 
   // Navigation - all users see the same links, plus admin link if admin
   // Dashboard access is controlled by subscription check in the pages

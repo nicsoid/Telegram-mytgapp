@@ -159,7 +159,19 @@ export default function TelegramMiniAppPage() {
     )
   }
 
-  const displayName = session.user.name || session.user.telegramUsername || session.user.email || "Member"
+  const displayName = (() => {
+    const name = session.user.name
+    const telegramUsername = session.user.telegramUsername
+    const email = session.user.email
+    
+    if (name && telegramUsername) {
+      return `${name} (@${telegramUsername})`
+    }
+    if (telegramUsername) {
+      return `@${telegramUsername}`
+    }
+    return name || email || "Member"
+  })()
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50">

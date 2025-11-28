@@ -14,55 +14,40 @@ export default function HomePage() {
   const [isClient, setIsClient] = useState(false)
   const [scriptLoaded, setScriptLoaded] = useState(false)
 
-  // Initialize and load Telegram script
+  // Initialize and detect Telegram WebApp
   useEffect(() => {
     setIsClient(true)
     
     if (typeof window === "undefined") return
     
-    // Check if Telegram is already available (script might be loaded by Telegram itself)
-    if ((window as any).Telegram?.WebApp) {
-      console.log('[HomePage] Telegram WebApp already available')
-      setIsTelegram(true)
+    // Check if Telegram WebApp is available (only in actual Telegram Mini App)
+    const checkTelegram = () => {
+      const tg = (window as any).Telegram?.WebApp
+      if (tg && tg.initData && tg.initDataUnsafe?.user) {
+        // Only consider it Telegram if we have actual initData (not just the script loaded)
+        console.log('[HomePage] Telegram WebApp detected with initData')
+        setIsTelegram(true)
+        tg.ready()
+        return true
+      }
+      return false
+    }
+    
+    // Check immediately
+    if (checkTelegram()) {
       setScriptLoaded(true)
       return
     }
     
-    // Load script if not already present
-    if (!document.querySelector('script[src*="telegram-web-app.js"]')) {
-      const script = document.createElement('script')
-      script.src = 'https://telegram.org/js/telegram-web-app.js'
-      script.async = true
-      script.onload = () => {
-        console.log('[HomePage] Telegram WebApp script loaded')
-        // Check for WebApp after script loads
-        setTimeout(() => {
-          const tg = (window as any).Telegram?.WebApp
-          if (tg) {
-            console.log('[HomePage] Telegram WebApp detected after script load')
-            setIsTelegram(true)
-            tg.ready()
-          }
-          setScriptLoaded(true)
-        }, 100)
+    // If not found, wait a bit and check again (script might be loading)
+    const timeout = setTimeout(() => {
+      if (!checkTelegram()) {
+        console.log('[HomePage] Not in Telegram Mini App, showing landing page')
       }
-      script.onerror = () => {
-        console.warn('[HomePage] Failed to load Telegram WebApp script')
-        setScriptLoaded(true) // Continue anyway
-      }
-      document.head.appendChild(script)
-    } else {
-      // Script tag exists, wait a bit and check
-      setTimeout(() => {
-        const tg = (window as any).Telegram?.WebApp
-        if (tg) {
-          console.log('[HomePage] Telegram WebApp detected (script was already loading)')
-          setIsTelegram(true)
-          tg.ready()
-        }
-        setScriptLoaded(true)
-      }, 200)
-    }
+      setScriptLoaded(true)
+    }, 300)
+    
+    return () => clearTimeout(timeout)
   }, [])
 
   // Don't redirect - always show landing page in browser

@@ -5,11 +5,20 @@ import { useSession, signOut } from "next-auth/react"
 
 export default function LandingPage() {
   const { data: session } = useSession()
-  const displayName =
-    session?.user?.name ||
-    session?.user?.telegramUsername ||
-    session?.user?.email ||
-    "Member"
+  const displayName = (() => {
+    if (!session?.user) return "Member"
+    const name = session.user.name
+    const telegramUsername = session.user.telegramUsername
+    const email = session.user.email
+    
+    if (name && telegramUsername) {
+      return `${name} (@${telegramUsername})`
+    }
+    if (telegramUsername) {
+      return `@${telegramUsername}`
+    }
+    return name || email || "Member"
+  })()
 
   const handleSignOut = () => {
     signOut({ callbackUrl: "/" })
