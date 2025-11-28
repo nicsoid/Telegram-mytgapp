@@ -95,7 +95,14 @@ bot.command("verify", async (ctx) => {
     )
   } catch (error) {
     console.error("Verify command error:", error)
-    await ctx.reply("❌ An error occurred while verifying the group. Please try again later.")
+    const errorMessage = error instanceof Error ? error.message : String(error)
+    const errorStack = error instanceof Error ? error.stack : undefined
+    console.error("Error details:", { errorMessage, errorStack, code, chatId, userId })
+    await ctx.reply(
+      `❌ An error occurred while verifying the group. Please try again later.\n\n` +
+      `Error: ${errorMessage}\n\n` +
+      `If this persists, please contact support.`
+    )
   }
 })
 

@@ -44,7 +44,11 @@ export default function AppLayout({ children }: AppLayoutProps) {
   }
 
   const isActive = (href: string) => {
-    // Match exact path or if pathname starts with href (for nested routes)
+    // For "/app", only match exactly (not /app/*)
+    if (href === "/app") {
+      return pathname === href
+    }
+    // For other routes, match exact path or if pathname starts with href (for nested routes)
     return pathname === href || pathname?.startsWith(href + '/')
   }
 

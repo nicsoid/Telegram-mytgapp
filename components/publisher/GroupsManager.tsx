@@ -235,6 +235,7 @@ export default function GroupsManager() {
           <div className="space-y-4">
             {groups.map((group) => (
               <div
+                id={`group-${group.id}`}
                 key={group.id}
                 className="rounded-lg border border-gray-200 bg-white p-6 shadow"
               >
@@ -283,12 +284,6 @@ export default function GroupsManager() {
                     </div>
                   </div>
                   <div className="flex flex-col gap-2 sm:ml-4 sm:flex-shrink-0">
-                    <Link
-                      href="/dashboard/groups"
-                      className="rounded bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 text-center"
-                    >
-                      Manage
-                    </Link>
                     {!group.isVerified && group.verificationCode && (
                       <div className="rounded bg-gray-100 p-2 text-center w-full sm:max-w-[120px]">
                         <p className="text-xs text-gray-600">Code:</p>
