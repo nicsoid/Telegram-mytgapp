@@ -59,6 +59,8 @@ export async function POST(request: NextRequest) {
           subscriptionStatus: "ACTIVE",
           telegramVerified: true,
           isVerified: false, // Will be true when email is also verified
+          freePostsUsed: 0,
+          freePostsLimit: 3, // 3 free posts on signup
         },
       })
     } else {

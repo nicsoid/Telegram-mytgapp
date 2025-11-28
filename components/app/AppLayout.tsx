@@ -22,8 +22,17 @@ export default function AppLayout({ children }: AppLayoutProps) {
 
   const navigation = [
     { name: "Overview", href: "/app", icon: "📊" },
-    { name: "Groups", href: "/app/groups", icon: "👥" },
-    { name: "Posts", href: "/app/posts", icon: "📝" },
+    ...(session?.user?.role === "PUBLISHER" 
+      ? [
+          { name: "My Groups", href: "/dashboard/groups", icon: "👥" },
+          { name: "My Posts", href: "/dashboard/posts", icon: "📝" },
+          { name: "Users", href: "/dashboard/users", icon: "👤" },
+        ]
+      : [
+          { name: "Browse Groups", href: "/app/groups", icon: "👥" },
+          { name: "My Posts", href: "/app/posts", icon: "📝" },
+        ]
+    ),
   ]
 
   const isActive = (href: string) => pathname === href

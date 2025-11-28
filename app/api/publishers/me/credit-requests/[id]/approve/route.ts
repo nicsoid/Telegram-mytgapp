@@ -55,7 +55,7 @@ export async function POST(
       data: {
         userId: creditRequest.userId,
         amount: approvedAmount,
-        type: "ADMIN_GRANT",
+        type: "PUBLISHER_GRANT",
         description: `Approved credit request from publisher: ${creditRequest.reason || "No reason provided"}`,
       },
     })

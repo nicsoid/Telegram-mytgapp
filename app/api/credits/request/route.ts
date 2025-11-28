@@ -6,7 +6,7 @@ import { z } from "zod"
 const requestSchema = z.object({
   amount: z.number().int().min(1).max(10000),
   reason: z.string().optional(),
-  publisherId: z.string().optional(), // Optional: request from specific publisher
+  publisherId: z.string(), // Required: users can only request from publishers
 })
 
 export async function POST(request: NextRequest) {
@@ -18,21 +18,19 @@ export async function POST(request: NextRequest) {
   const body = await request.json()
   const { amount, reason, publisherId } = requestSchema.parse(body)
 
-  // If publisherId is provided, verify publisher exists
-  if (publisherId) {
-    const publisher = await prisma.publisher.findUnique({
-      where: { id: publisherId },
-    })
+  // Verify publisher exists
+  const publisher = await prisma.publisher.findUnique({
+    where: { id: publisherId },
+  })
 
-    if (!publisher) {
-      return NextResponse.json({ error: "Publisher not found" }, { status: 404 })
-    }
+  if (!publisher) {
+    return NextResponse.json({ error: "Publisher not found" }, { status: 404 })
   }
 
   const creditRequest = await prisma.creditRequest.create({
     data: {
       userId: session.user.id,
-      publisherId: publisherId || null,
+      publisherId: publisherId, // Required - users can only request from publishers
       amount,
       reason: reason || null,
       status: "PENDING",
@@ -42,8 +40,6 @@ export async function POST(request: NextRequest) {
   return NextResponse.json({
     success: true,
     request: creditRequest,
-    message: publisherId
-      ? "Credit request submitted to publisher"
-      : "Credit request submitted to admin",
+    message: "Credit request submitted to publisher",
   })
 }

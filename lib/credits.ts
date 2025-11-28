@@ -17,7 +17,7 @@ export async function getUserCredits(userId: string): Promise<number> {
 export async function addCredits(
   userId: string,
   amount: number,
-  type: "PURCHASE" | "EARNED" | "ADMIN_GRANT",
+  type: "PURCHASE" | "EARNED" | "PUBLISHER_GRANT",
   description?: string,
   relatedPostId?: string,
   relatedGroupId?: string

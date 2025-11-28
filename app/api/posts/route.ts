@@ -84,8 +84,54 @@ export async function POST(request: NextRequest) {
     )
   }
 
+  // Check if this is publisher's own post (not a paid ad)
+  const isOwnPost = !isPaidAd || !advertiserId
+
+  // For publisher's own posts, check free posts or subscription
+  if (isOwnPost) {
+    const publisher = await prisma.publisher.findUnique({
+      where: { id: guard.publisher.id },
+      select: {
+        id: true,
+        freePostsUsed: true,
+        freePostsLimit: true,
+        subscriptionTier: true,
+        subscriptionStatus: true,
+        subscriptionExpiresAt: true,
+        subscriptions: {
+          where: {
+            status: "ACTIVE",
+          },
+        },
+      },
+    })
+
+    if (!publisher) {
+      return NextResponse.json({ error: "Publisher not found" }, { status: 404 })
+    }
+
+    // Check if publisher has free posts available
+    const hasFreePosts = publisher.freePostsUsed < publisher.freePostsLimit
+    const hasActiveSubscription = publisher.subscriptions.length > 0 || 
+                                  (publisher.subscriptionStatus === "ACTIVE" && 
+                                   publisher.subscriptionTier !== "FREE" &&
+                                   (!publisher.subscriptionExpiresAt || publisher.subscriptionExpiresAt > new Date()))
+
+    if (!hasFreePosts && !hasActiveSubscription) {
+      return NextResponse.json(
+        { 
+          error: "No free posts remaining. Please subscribe to continue posting.",
+          requiresSubscription: true,
+          freePostsUsed: publisher.freePostsUsed,
+          freePostsLimit: publisher.freePostsLimit,
+        },
+        { status: 403 }
+      )
+    }
+  }
+
   // If paid ad, verify advertiser and check credits
-  let creditsPaid = null
+  let creditsPaid: number | null = null
   if (isPaidAd && advertiserId) {
     const advertiser = await prisma.user.findUnique({
       where: { id: advertiserId },
@@ -179,34 +225,59 @@ export async function POST(request: NextRequest) {
     })
   }
 
-  const post = await prisma.telegramPost.create({
-    data: {
-      groupId,
-      publisherId: guard.publisher.id,
-      advertiserId: isPaidAd ? advertiserId : null,
-      content,
-      mediaUrls: mediaUrls || [],
-      scheduledAt: new Date(scheduledAt),
-      status: PostStatus.SCHEDULED,
-      isPaidAd,
-      creditsPaid,
-    },
-    include: {
-      group: {
-        select: {
-          id: true,
-          name: true,
-        },
+  // Create post and update free posts counter if it's a free post
+  const post = await prisma.$transaction(async (tx) => {
+    const newPost = await tx.telegramPost.create({
+      data: {
+        groupId,
+        publisherId: guard.publisher.id,
+        advertiserId: isPaidAd ? advertiserId : null,
+        content,
+        mediaUrls: mediaUrls || [],
+        scheduledAt: new Date(scheduledAt),
+        status: PostStatus.SCHEDULED,
+        isPaidAd,
+        creditsPaid,
       },
-    },
-  })
+    })
 
-  // Update group stats
-  await prisma.telegramGroup.update({
-    where: { id: groupId },
-    data: {
-      totalPostsScheduled: { increment: 1 },
-    },
+    // If it's publisher's own post and they have free posts, increment counter
+    if (isOwnPost) {
+      const publisher = await tx.publisher.findUnique({
+        where: { id: guard.publisher.id },
+      })
+
+      if (publisher && publisher.freePostsUsed < publisher.freePostsLimit) {
+        await tx.publisher.update({
+          where: { id: guard.publisher.id },
+          data: {
+            freePostsUsed: { increment: 1 },
+          },
+        })
+
+        // Create transaction record for free post
+        await tx.creditTransaction.create({
+          data: {
+            userId: guard.publisher.userId,
+            amount: 0,
+            type: "FREE_POST",
+            relatedPostId: newPost.id,
+            relatedGroupId: groupId,
+            description: `Free post in ${group.name}`,
+          },
+        })
+      }
+    }
+
+    // Update group stats
+    await tx.telegramGroup.update({
+      where: { id: groupId },
+      data: {
+        totalPostsScheduled: { increment: 1 },
+      },
+    })
+
+    return newPost
   })
 
   return NextResponse.json({

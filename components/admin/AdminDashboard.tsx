@@ -145,26 +145,10 @@ export default function AdminDashboard() {
     }
   }
 
-  const handleGrantCredits = async (amount: number, reason?: string) => {
-    if (!grantModal.userId) return
-
-    try {
-      const res = await fetch(`/api/admin/users/${grantModal.userId}/credits`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({ amount, reason }),
-      })
-      if (res.ok) {
-        fetchUsers()
-        return Promise.resolve()
-      } else {
-        const data = await res.json()
-        throw new Error(data.error || "Failed to grant credits")
-      }
-    } catch (error: any) {
-      throw new Error(error.message || "Failed to grant credits")
-    }
+  // Admin no longer grants credits - only publishers do
+  const handleGrantCredits = async () => {
+    alert("Admins no longer grant credits. Publishers grant credits to users for their groups.")
+    return Promise.reject(new Error("Admins do not grant credits"))
   }
 
   return (
@@ -311,17 +295,7 @@ export default function AdminDashboard() {
                             )}
                           </td>
                           <td className="whitespace-nowrap px-6 py-4 text-sm font-medium">
-                            <button
-                              onClick={() => setGrantModal({
-                                isOpen: true,
-                                userId: user.id,
-                                userName: user.name || user.email || "User",
-                                currentCredits: user.credits,
-                              })}
-                              className="rounded-lg bg-gradient-to-r from-blue-600 to-indigo-600 px-4 py-2 text-xs font-semibold text-white shadow-sm transition-all hover:from-blue-700 hover:to-indigo-700 hover:shadow-md"
-                            >
-                              Grant Credits
-                            </button>
+                            <span className="text-xs text-gray-400">Publishers grant credits</span>
                           </td>
                         </tr>
                       ))}

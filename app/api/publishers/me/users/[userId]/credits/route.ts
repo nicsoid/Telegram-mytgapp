@@ -51,7 +51,7 @@ export async function POST(
       data: {
         userId,
         amount,
-        type: "ADMIN_GRANT",
+        type: "PUBLISHER_GRANT",
         relatedGroupId: groupId || null,
         description: notes || `Credits granted by publisher ${guard.publisher.id}`,
       },
