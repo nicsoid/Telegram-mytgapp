@@ -19,34 +19,49 @@ export default function TelegramLayout({ children }: { children: React.ReactNode
         tg.ready()
         
         // Auto-authenticate if in Telegram Mini App and not signed in
-        if (status === "unauthenticated" && !autoSignInAttempted) {
-          const initData = tg.initData || tg.initDataUnsafe
-          if (initData) {
-            console.log('[TelegramLayout] Auto-authenticating with Telegram WebApp initData')
-            setAutoSignInAttempted(true)
-            
-            // Auto-sign in with Telegram WebApp data
-            signIn("credentials", {
-              initData,
-              redirect: false,
-            })
-              .then((result) => {
-                if (result?.error) {
-                  console.error('[TelegramLayout] Auto-sign in failed:', result.error)
-                } else if (result?.ok) {
-                  console.log('[TelegramLayout] Auto-sign in successful')
-                }
+        // Wait a bit for session to initialize, then try auth
+        const checkAndAuth = () => {
+          if (status === "unauthenticated" && !autoSignInAttempted) {
+            const initData = tg.initData || tg.initDataUnsafe
+            if (initData) {
+              console.log('[TelegramLayout] Auto-authenticating with Telegram WebApp initData')
+              setAutoSignInAttempted(true)
+              
+              // Auto-sign in with Telegram WebApp data
+              signIn("credentials", {
+                initData,
+                redirect: false,
               })
-              .catch((error) => {
-                console.error('[TelegramLayout] Auto-sign in error:', error)
-              })
-          } else {
-            console.warn('[TelegramLayout] Telegram WebApp detected but no initData available')
+                .then((result) => {
+                  if (result?.error) {
+                    console.error('[TelegramLayout] Auto-sign in failed:', result.error)
+                    // Reset to try again
+                    setAutoSignInAttempted(false)
+                  } else if (result?.ok) {
+                    console.log('[TelegramLayout] Auto-sign in successful')
+                  }
+                })
+                .catch((error) => {
+                  console.error('[TelegramLayout] Auto-sign in error:', error)
+                  // Reset to try again
+                  setAutoSignInAttempted(false)
+                })
+            } else {
+              console.warn('[TelegramLayout] Telegram WebApp detected but no initData available')
+              console.log('[TelegramLayout] Available WebApp properties:', Object.keys(tg))
+            }
           }
         }
+        
+        // Try immediately
+        checkAndAuth()
+        
+        // Also try after a short delay in case session is still initializing
+        const timeout = setTimeout(checkAndAuth, 500)
+        return () => clearTimeout(timeout)
       }
     }
-  }, [status, session, autoSignInAttempted])
+  }, [status, autoSignInAttempted])
 
   return (
     <>
