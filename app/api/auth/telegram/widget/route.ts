@@ -144,8 +144,15 @@ export async function GET(request: NextRequest) {
 
     // Create a session by redirecting to signin page with widget token
     // Always use "/" as callbackUrl to prevent redirect loops
-    // The widget doesn't need to preserve the original callbackUrl since it's a direct auth flow
     const callbackUrl = "/"
+    const baseUrl = getBaseUrl(request)
+    const baseDomain = (() => {
+      try {
+        return new URL(baseUrl).hostname
+      } catch {
+        return undefined
+      }
+    })()
     
     // Store a temporary auth token (we'll use a simple approach with user ID + timestamp hash)
     const authToken = Buffer.from(`${user.id}:${Date.now()}`).toString('base64')
@@ -154,7 +161,7 @@ export async function GET(request: NextRequest) {
     
     // Store in a cookie or redirect with token
     const response = NextResponse.redirect(
-      new URL(`/auth/signin?widget_token=${authToken}&callbackUrl=${encodeURIComponent(callbackUrl)}`, getBaseUrl(request))
+      new URL(`/auth/signin?widget_token=${authToken}&callbackUrl=${encodeURIComponent(callbackUrl)}`, baseUrl)
     )
     
     // Set a secure cookie with the auth token (expires in 5 minutes)
@@ -163,6 +170,8 @@ export async function GET(request: NextRequest) {
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',
       maxAge: 60 * 5, // 5 minutes
+      path: '/',
+      domain: baseDomain && baseDomain !== 'localhost' && baseDomain !== '127.0.0.1' ? baseDomain : undefined,
     })
     
     return response
