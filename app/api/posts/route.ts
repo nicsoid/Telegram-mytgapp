@@ -15,54 +15,62 @@ const createPostSchema = z.object({
 })
 
 export async function GET(request: NextRequest) {
-  const session = await auth()
-  if (!session?.user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-  }
+  try {
+    const session = await auth()
+    if (!session?.user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
 
-  const { searchParams } = new URL(request.url)
-  const groupId = searchParams.get("groupId")
-  const status = searchParams.get("status")
+    const { searchParams } = new URL(request.url)
+    const groupId = searchParams.get("groupId")
+    const status = searchParams.get("status")
 
-  const where: any = {
-    OR: [
-      { ownerId: session.user.id }, // Posts in groups owned by user
-      { advertiserId: session.user.id }, // Posts where user is advertiser
-    ],
-  }
+    const where: any = {
+      OR: [
+        { ownerId: session.user.id }, // Posts in groups owned by user
+        { advertiserId: session.user.id }, // Posts where user is advertiser
+      ],
+    }
 
-  if (groupId) {
-    where.groupId = groupId
-  }
+    if (groupId) {
+      where.groupId = groupId
+    }
 
-  if (status) {
-    where.status = status
-  }
+    if (status) {
+      where.status = status
+    }
 
-  const posts = await prisma.telegramPost.findMany({
-    where,
-    include: {
-      group: {
-        select: {
-          id: true,
-          name: true,
-          username: true,
-          pricePerPost: true,
-          isVerified: true,
+    const posts = await prisma.telegramPost.findMany({
+      where,
+      include: {
+        group: {
+          select: {
+            id: true,
+            name: true,
+            username: true,
+            pricePerPost: true,
+            isVerified: true,
+          },
+        },
+        advertiser: {
+          select: {
+            id: true,
+            name: true,
+            telegramUsername: true,
+          },
         },
       },
-      advertiser: {
-        select: {
-          id: true,
-          name: true,
-          telegramUsername: true,
-        },
-      },
-    },
-    orderBy: { scheduledAt: "asc" },
-  })
+      orderBy: { scheduledAt: "asc" },
+    })
 
-  return NextResponse.json({ posts })
+    return NextResponse.json({ posts })
+  } catch (error) {
+    console.error("Error fetching posts:", error)
+    return NextResponse.json(
+      { error: "Failed to fetch posts", details: error instanceof Error ? error.message : "Unknown error" },
+      { status: 500 }
+    )
+  }
 }
 
 export async function POST(request: NextRequest) {

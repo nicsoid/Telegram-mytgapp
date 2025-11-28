@@ -115,12 +115,20 @@ export default function LandingPage() {
                 </>
               ) : (
                 <>
-                  <button
-                    onClick={handleGoToApp}
+                  <Link
+                    href="/app"
                     className="px-8 py-4 bg-blue-600 text-white rounded-lg text-lg font-semibold hover:bg-blue-700 transition-colors shadow-lg"
                   >
-                    {appLabel}
-                  </button>
+                    Open User Area
+                  </Link>
+                  {session.user.role === "ADMIN" && (
+                    <Link
+                      href="/admin"
+                      className="px-8 py-4 bg-purple-600 text-white rounded-lg text-lg font-semibold hover:bg-purple-700 transition-colors shadow-lg"
+                    >
+                      Open Admin Area
+                    </Link>
+                  )}
                   <button
                     onClick={handleSignOut}
                     className="px-8 py-4 bg-white text-gray-700 rounded-lg text-lg font-semibold border-2 border-gray-300 hover:border-gray-400 transition-colors"
@@ -368,11 +376,19 @@ export default function LandingPage() {
             </Link>
           ) : (
             <Link
-              href={appPath}
+              href="/app"
               className="inline-block px-10 py-5 bg-white text-blue-600 rounded-lg text-lg font-semibold hover:bg-gray-50 transition-colors shadow-xl"
             >
-              {appLabel}
+              Open User Area
             </Link>
+            {session.user.role === "ADMIN" && (
+              <Link
+                href="/admin"
+                className="inline-block px-10 py-5 bg-purple-600 text-white rounded-lg text-lg font-semibold hover:bg-purple-700 transition-colors shadow-xl ml-4"
+              >
+                Open Admin Area
+              </Link>
+            )}
           )}
         </div>
       </section>

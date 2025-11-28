@@ -39,6 +39,8 @@ export default function AppPostsPage() {
   const [message, setMessage] = useState<string | null>(null)
   const [uploading, setUploading] = useState(false)
   const [uploadError, setUploadError] = useState<string | null>(null)
+  const [showUrlInput, setShowUrlInput] = useState(false)
+  const [urlInput, setUrlInput] = useState("")
 
   const verifiedGroups = useMemo(() => groups.filter((g) => g.isVerified), [groups])
 
@@ -71,7 +73,14 @@ export default function AppPostsPage() {
       if (res.ok) {
         const data = await res.json()
         setPosts(data.posts || [])
+      } else {
+        const errorData = await res.json().catch(() => ({ error: "Failed to load posts" }))
+        console.error("Failed to load posts:", errorData)
+        setMessage(`Error: ${errorData.error || "Failed to load posts"}`)
       }
+    } catch (error) {
+      console.error("Error loading posts:", error)
+      setMessage("An error occurred while loading posts. Please try again.")
     } finally {
       setLoading(false)
     }
@@ -125,9 +134,14 @@ export default function AppPostsPage() {
   }
 
   const handleAddMediaUrl = () => {
-    const url = prompt("Enter media URL (image or video):")
-    if (url && url.trim()) {
-      setForm((prev) => ({ ...prev, mediaUrls: [...prev.mediaUrls, url.trim()] }))
+    setShowUrlInput(true)
+  }
+
+  const handleSubmitUrl = () => {
+    if (urlInput && urlInput.trim()) {
+      setForm((prev) => ({ ...prev, mediaUrls: [...prev.mediaUrls, urlInput.trim()] }))
+      setUrlInput("")
+      setShowUrlInput(false)
     }
   }
 
@@ -178,9 +192,9 @@ export default function AppPostsPage() {
   }
 
   // Show loading state while session is being checked
-  if (status === "loading") {
+  if (status === "loading" || loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center">
+      <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-gray-50 via-white to-gray-50">
         <div className="text-center">
           <div className="mb-4 text-4xl">⏳</div>
           <p className="text-gray-600">Loading...</p>
@@ -190,9 +204,10 @@ export default function AppPostsPage() {
   }
 
   // Only show "sign in" message if we're sure user is not authenticated
-  if (status === "unauthenticated" || !session?.user) {
+  // Wait a bit longer for session to load in mini app
+  if (status === "unauthenticated") {
     return (
-      <div className="flex min-h-screen items-center justify-center text-gray-600">
+      <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-gray-50 via-white to-gray-50 text-gray-600">
         Please sign in to manage posts.
       </div>
     )
@@ -406,13 +421,44 @@ export default function AppPostsPage() {
 
               {/* Or Add URL */}
               <div className="mb-3">
-                <button
-                  type="button"
-                  onClick={handleAddMediaUrl}
-                  className="w-full rounded-lg border-2 border-dashed border-gray-300 bg-gray-50 px-4 py-2 text-sm font-medium text-gray-700 transition-all hover:border-blue-400 hover:bg-blue-50"
-                >
-                  + Or Add Media URL
-                </button>
+                {!showUrlInput ? (
+                  <button
+                    type="button"
+                    onClick={handleAddMediaUrl}
+                    className="w-full rounded-lg border-2 border-dashed border-gray-300 bg-gray-50 px-4 py-2 text-sm font-medium text-gray-700 transition-all hover:border-blue-400 hover:bg-blue-50"
+                  >
+                    + Or Add Media URL
+                  </button>
+                ) : (
+                  <div className="space-y-2">
+                    <input
+                      type="url"
+                      value={urlInput}
+                      onChange={(e) => setUrlInput(e.target.value)}
+                      placeholder="Enter media URL (image or video)"
+                      className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm transition-all focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
+                    />
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={handleSubmitUrl}
+                        className="flex-1 rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700 transition-colors"
+                      >
+                        Add URL
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowUrlInput(false)
+                          setUrlInput("")
+                        }}
+                        className="flex-1 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
 
               {uploadError && (

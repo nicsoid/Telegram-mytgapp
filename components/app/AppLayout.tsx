@@ -27,8 +27,12 @@ export default function AppLayout({ children }: AppLayoutProps) {
     { name: "My Groups", href: "/app/groups", icon: "👥" },
     { name: "My Posts", href: "/app/posts", icon: "📝" },
     { name: "Dashboard", href: "/dashboard", icon: "⚙️" },
-    ...(session?.user?.role === "ADMIN" ? [{ name: "Admin", href: "/admin", icon: "🔧" }] : []),
   ]
+  
+  // Admin users see both App and Admin links
+  if (session?.user?.role === "ADMIN") {
+    navigation.push({ name: "Admin", href: "/admin", icon: "🔧" })
+  }
 
   const isActive = (href: string) => {
     // Match exact path or if pathname starts with href (for nested routes)
