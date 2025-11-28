@@ -20,13 +20,14 @@ export default function AppLayout({ children }: AppLayoutProps) {
     session?.user?.email ||
     "Member"
 
-  // Navigation - all users see the same links
+  // Navigation - all users see the same links, plus admin link if admin
   // Dashboard access is controlled by subscription check in the pages
   const navigation = [
     { name: "Overview", href: "/app", icon: "📊" },
     { name: "My Groups", href: "/app/groups", icon: "👥" },
     { name: "My Posts", href: "/app/posts", icon: "📝" },
     { name: "Dashboard", href: "/dashboard", icon: "⚙️" },
+    ...(session?.user?.role === "ADMIN" ? [{ name: "Admin", href: "/admin", icon: "🔧" }] : []),
   ]
 
   const isActive = (href: string) => pathname === href

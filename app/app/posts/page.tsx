@@ -30,7 +30,7 @@ const initialPost = {
 }
 
 export default function AppPostsPage() {
-  const { data: session } = useSession()
+  const { data: session, status } = useSession()
   const [groups, setGroups] = useState<TelegramGroup[]>([])
   const [posts, setPosts] = useState<TelegramPost[]>([])
   const [loading, setLoading] = useState(true)
@@ -46,8 +46,11 @@ export default function AppPostsPage() {
     if (session?.user) {
       loadGroups()
       loadPosts()
+    } else if (status === "unauthenticated") {
+      // Only set loading to false if we're sure user is not authenticated
+      setLoading(false)
     }
-  }, [session])
+  }, [session, status])
 
   const loadGroups = async () => {
     const res = await fetch("/api/groups", { credentials: "include" })
@@ -174,7 +177,20 @@ export default function AppPostsPage() {
     }
   }
 
-  if (!session?.user) {
+  // Show loading state while session is being checked
+  if (status === "loading") {
+    return (
+      <div className="flex min-h-screen items-center justify-center">
+        <div className="text-center">
+          <div className="mb-4 text-4xl">⏳</div>
+          <p className="text-gray-600">Loading...</p>
+        </div>
+      </div>
+    )
+  }
+
+  // Only show "sign in" message if we're sure user is not authenticated
+  if (status === "unauthenticated" || !session?.user) {
     return (
       <div className="flex min-h-screen items-center justify-center text-gray-600">
         Please sign in to manage posts.

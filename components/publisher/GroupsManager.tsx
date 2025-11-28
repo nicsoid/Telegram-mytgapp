@@ -107,21 +107,22 @@ export default function GroupsManager() {
         <h1 className="text-3xl font-bold text-gray-900">Manage Groups</h1>
         <p className="mt-2 text-sm text-gray-600">Add and manage your Telegram groups</p>
       </div>
-        {success && (
-          <div className="mb-6 rounded-lg border border-green-200 bg-green-50 p-4">
-            <p className="text-sm text-green-800">{success}</p>
-            {verificationCode && (
-              <div className="mt-2 rounded bg-white p-3">
-                <p className="text-sm font-semibold text-gray-900">Verification Code:</p>
-                <p className="mt-1 font-mono text-lg font-bold text-blue-600">{verificationCode}</p>
-                <p className="mt-2 text-xs text-gray-600">
-                  1. Add the bot to your group as admin<br />
-                  2. Send <code className="rounded bg-gray-100 px-1 py-0.5">/verify {verificationCode}</code> in the group
-                </p>
-              </div>
-            )}
-          </div>
-        )}
+      
+      {success && (
+        <div className="rounded-lg border border-green-200 bg-green-50 p-4">
+          <p className="text-sm text-green-800">{success}</p>
+          {verificationCode && (
+            <div className="mt-2 rounded bg-white p-3">
+              <p className="text-sm font-semibold text-gray-900">Verification Code:</p>
+              <p className="mt-1 font-mono text-lg font-bold text-blue-600 break-all">{verificationCode}</p>
+              <p className="mt-2 text-xs text-gray-600">
+                1. Add the bot to your group as admin<br />
+                2. Send <code className="rounded bg-gray-100 px-1 py-0.5">/verify {verificationCode}</code> in the group
+              </p>
+            </div>
+          )}
+        </div>
+      )}
 
         {error && (
           <div className="mb-6 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800">
@@ -289,9 +290,9 @@ export default function GroupsManager() {
                       Manage
                     </Link>
                     {!group.isVerified && group.verificationCode && (
-                      <div className="mt-2 rounded bg-gray-100 p-2 text-center">
+                      <div className="mt-2 rounded bg-gray-100 p-2 text-center max-w-[120px]">
                         <p className="text-xs text-gray-600">Code:</p>
-                        <p className="font-mono text-sm font-bold">{group.verificationCode}</p>
+                        <p className="font-mono text-xs font-bold break-all">{group.verificationCode}</p>
                       </div>
                     )}
                   </div>

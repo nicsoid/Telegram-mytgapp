@@ -16,7 +16,7 @@ type Stats = {
 }
 
 export default function AppPage() {
-  const { data: session } = useSession()
+  const { data: session, status } = useSession()
   const [stats, setStats] = useState<Stats>({
     credits: 0,
     groupsCount: 0,
@@ -90,7 +90,20 @@ export default function AppPage() {
     }
   }
 
-  if (!session?.user) {
+  // Show loading state while session is being checked
+  if (status === "loading") {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-gray-50 via-white to-gray-50">
+        <div className="text-center">
+          <div className="mb-4 text-4xl">⏳</div>
+          <p className="text-gray-600">Loading...</p>
+        </div>
+      </div>
+    )
+  }
+
+  // Only show "sign in" message if we're sure user is not authenticated
+  if (status === "unauthenticated" || !session?.user) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-gray-50 via-white to-gray-50">
         <div className="text-center">

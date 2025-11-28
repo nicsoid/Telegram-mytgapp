@@ -110,10 +110,23 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error("Group verification error:", error)
     if (error instanceof z.ZodError) {
-      return NextResponse.json({ error: "Invalid request data" }, { status: 400 })
+      return NextResponse.json({ 
+        error: "Invalid request data",
+        details: error.errors 
+      }, { status: 400 })
     }
+    // Log more details for debugging
+    const errorMessage = error instanceof Error ? error.message : "Unknown error"
+    console.error("Verification error details:", {
+      errorMessage,
+      error,
+      stack: error instanceof Error ? error.stack : undefined
+    })
     return NextResponse.json(
-      { error: "Failed to verify group" },
+      { 
+        error: "Failed to verify group",
+        message: errorMessage 
+      },
       { status: 500 }
     )
   }

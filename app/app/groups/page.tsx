@@ -26,7 +26,7 @@ type AdvertisedGroup = {
 }
 
 export default function MyGroupsPage() {
-  const { data: session } = useSession()
+  const { data: session, status } = useSession()
   const [myGroups, setMyGroups] = useState<TelegramGroup[]>([])
   const [advertisedGroups, setAdvertisedGroups] = useState<AdvertisedGroup[]>([])
   const [loading, setLoading] = useState(true)
@@ -34,8 +34,10 @@ export default function MyGroupsPage() {
   useEffect(() => {
     if (session?.user) {
       loadGroups()
+    } else if (status === "unauthenticated") {
+      setLoading(false)
     }
-  }, [session])
+  }, [session, status])
 
   const loadGroups = async () => {
     setLoading(true)
@@ -86,7 +88,20 @@ export default function MyGroupsPage() {
     }
   }
 
-  if (!session?.user) {
+  // Show loading state while session is being checked
+  if (status === "loading") {
+    return (
+      <div className="flex min-h-screen items-center justify-center">
+        <div className="text-center">
+          <div className="mb-4 text-4xl">⏳</div>
+          <p className="text-gray-600">Loading...</p>
+        </div>
+      </div>
+    )
+  }
+
+  // Only show "sign in" message if we're sure user is not authenticated
+  if (status === "unauthenticated" || !session?.user) {
     return (
       <div className="flex min-h-screen items-center justify-center text-gray-600">
         Please sign in to view your groups.

@@ -5,6 +5,9 @@ import Link from "next/link"
 
 type Publisher = {
   id: string
+  name: string | null
+  email: string | null
+  telegramUsername: string | null
   subscriptionTier: string
   subscriptionStatus: string
   telegramVerified: boolean
@@ -12,15 +15,8 @@ type Publisher = {
   isVerified: boolean
   totalEarnings: number
   totalSpent: number
+  credits: number
   createdAt: string
-  user: {
-    id: string
-    name: string | null
-    email: string | null
-    telegramUsername: string | null
-    credits: number
-    createdAt: string
-  }
   groups: Array<{
     id: string
     name: string
@@ -29,8 +25,7 @@ type Publisher = {
   }>
   _count: {
     groups: number
-    posts: number
-    managedUsers: number
+    ownerPosts: number
   }
 }
 
@@ -292,18 +287,18 @@ export default function PublishersManager() {
                           <td className="px-6 py-4 whitespace-nowrap">
                             <div className="flex items-center space-x-3">
                               <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-gradient-to-br from-purple-500 to-indigo-500 text-white font-bold text-sm">
-                                {(publisher.user.name || publisher.user.email || "P")[0].toUpperCase()}
+                                {(publisher.name || publisher.email || "P")[0].toUpperCase()}
                               </div>
                               <div>
                                 <div className="text-sm font-semibold text-gray-900">
-                                  {publisher.user.name || "N/A"}
+                                  {publisher.name || "N/A"}
                                 </div>
                                 <div className="text-sm text-gray-500">
-                                  {publisher.user.email || publisher.user.telegramUsername || publisher.user.id}
+                                  {publisher.email || publisher.telegramUsername || publisher.id}
                                 </div>
-                                {publisher.user.telegramUsername && (
+                                {publisher.telegramUsername && (
                                   <div className="text-xs text-gray-400">
-                                    @{publisher.user.telegramUsername}
+                                    @{publisher.telegramUsername}
                                   </div>
                                 )}
                               </div>
@@ -371,8 +366,7 @@ export default function PublishersManager() {
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                             <div>Groups: {publisher._count.groups}</div>
-                            <div>Posts: {publisher._count.posts}</div>
-                            <div>Managed Users: {publisher._count.managedUsers}</div>
+                            <div>Posts: {publisher._count.ownerPosts}</div>
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm">
                             <div className="text-gray-900 font-medium">
@@ -382,7 +376,7 @@ export default function PublishersManager() {
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                             <Link
-                              href={`/admin/users?userId=${publisher.user.id}`}
+                              href={`/admin/users/${publisher.id}`}
                               className="rounded-lg bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-700 transition-all hover:bg-blue-100"
                             >
                               View Details
