@@ -93,9 +93,13 @@ model User {
   image             String?
   password          String? // For email/password auth (optional, can use Telegram only)
   role              UserRole @default(USER)
-  telegramId       String?  @unique
-  telegramUsername String?
+  telegramId        String?  @unique
+  telegramUsername  String?
   telegramVerifiedAt DateTime? // When Telegram account was verified
+  telegramVerificationCode             String?
+  telegramVerificationExpires          DateTime?
+  telegramVerificationTelegramId       String?
+  telegramVerificationTelegramUsername String?
   credits           Int      @default(0) // Unified credit balance
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt

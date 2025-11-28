@@ -85,15 +85,60 @@ bot.command("verify", async (ctx) => {
 
 // Start command
 bot.command("start", async (ctx) => {
-  await ctx.reply(
-    "👋 Welcome to MyTgApp Bot!\n\n" +
-    "This bot helps you verify and manage your Telegram groups.\n\n" +
-    "To verify a group:\n" +
-    "1. Add this bot to your group as admin\n" +
-    "2. Get the verification code from your MyTgApp dashboard\n" +
-    "3. Send /verify <code> in the group\n\n" +
-    "Visit https://mytgapp.com to get started!"
-  )
+  try {
+    const code = ctx.startPayload?.trim()
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://mytgapp.com"
+
+    await ctx.reply(
+      "👋 Welcome to MyTgApp Bot!\n\n" +
+        "This bot helps you verify your Telegram identity and manage your groups.\n\n" +
+        "To verify a group:\n" +
+        "1. Add this bot to your group as admin\n" +
+        "2. Get the verification code from your dashboard\n" +
+        "3. Send /verify <code> in the group\n\n" +
+        `Visit ${appUrl} to get started!`
+    )
+
+    if (code) {
+      const verificationCode = code.toUpperCase()
+      const user = await prisma.user.findFirst({
+        where: { telegramVerificationCode: verificationCode },
+        select: {
+          id: true,
+          telegramVerificationExpires: true,
+          telegramVerificationTelegramId: true,
+        },
+      })
+
+      if (
+        !user ||
+        !user.telegramVerificationExpires ||
+        user.telegramVerificationExpires.getTime() < Date.now()
+      ) {
+        await ctx.reply("⚠️ Verification code is invalid or expired. Generate a new one in the MyTgApp dashboard.")
+        return
+      }
+
+      await prisma.user.update({
+        where: { id: user.id },
+        data: {
+          telegramVerificationTelegramId: ctx.from?.id ? String(ctx.from.id) : null,
+          telegramVerificationTelegramUsername: ctx.from?.username ?? null,
+          telegramId:
+            user.telegramVerificationTelegramId == null && ctx.from?.id
+              ? String(ctx.from.id)
+              : undefined,
+        },
+      })
+
+      await ctx.reply(
+        "✅ Telegram account detected!\n\nReturn to MyTgApp and press “Confirm verification” to finish linking your account."
+      )
+    }
+  } catch (error) {
+    console.error("Start command error:", error)
+    await ctx.reply("❌ Something went wrong. Please try again later.")
+  }
 })
 
 // Help command

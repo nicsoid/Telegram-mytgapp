@@ -43,6 +43,7 @@ const authConfig = {
               role: user.role,
               telegramId: user.telegramId,
               telegramUsername: user.telegramUsername,
+              telegramVerifiedAt: user.telegramVerifiedAt,
             }
           } catch {
             return null
@@ -95,6 +96,7 @@ const authConfig = {
           role: user.role,
           telegramId: user.telegramId,
           telegramUsername: user.telegramUsername,
+          telegramVerifiedAt: user.telegramVerifiedAt,
         }
       },
     }),
@@ -106,6 +108,7 @@ const authConfig = {
         token.role = (user as any).role
         token.telegramId = (user as any).telegramId
         token.telegramUsername = (user as any).telegramUsername
+        token.telegramVerifiedAt = (user as any).telegramVerifiedAt
       }
       return token
     },
@@ -115,6 +118,7 @@ const authConfig = {
         ;(session.user as any).role = token.role
         ;(session.user as any).telegramId = token.telegramId
         ;(session.user as any).telegramUsername = token.telegramUsername
+        ;(session.user as any).telegramVerifiedAt = token.telegramVerifiedAt
       }
       return session
     },

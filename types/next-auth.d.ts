@@ -11,6 +11,7 @@ declare module "next-auth" {
       role: UserRole
       telegramId?: string | null
       telegramUsername?: string | null
+      telegramVerifiedAt?: string | null
     }
   }
 
@@ -22,6 +23,7 @@ declare module "next-auth" {
     role: UserRole
     telegramId?: string | null
     telegramUsername?: string | null
+    telegramVerifiedAt?: Date | null
   }
 }
 
@@ -31,6 +33,7 @@ declare module "next-auth/jwt" {
     role: UserRole
     telegramId?: string | null
     telegramUsername?: string | null
+    telegramVerifiedAt?: string | null
   }
 }
 
