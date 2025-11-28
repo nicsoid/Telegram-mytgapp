@@ -28,22 +28,13 @@ const authConfig = {
             if (!userStr) return null
 
             const userData = JSON.parse(decodeURIComponent(userStr))
-            console.log('[auth] Widget sign-in payload:', {
-              telegramId: userData.id,
-              username: userData.username,
-            })
             
             // Find user by telegramId
             const user = await prisma.user.findUnique({
               where: { telegramId: userData.id.toString() },
             })
 
-            if (!user) {
-              console.warn('[auth] Widget sign-in user not found:', userData.id)
-              return null
-            }
-
-            console.log('[auth] Widget sign-in success for user:', user.id, user.telegramUsername)
+            if (!user) return null
             return {
               id: user.id,
               email: user.email,

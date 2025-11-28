@@ -17,18 +17,11 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)
     
-    // Get all query parameters - log raw values to see exactly what Telegram sent
+    // Get all query parameters
     const widgetData: Record<string, string> = {}
-    const rawParams: Record<string, string> = {}
     searchParams.forEach((value, key) => {
       widgetData[key] = value
-      rawParams[key] = value
-      // Log each parameter with its exact value and byte representation
-      console.log(`[widget] Raw param: ${key} = "${value}" (bytes: ${Array.from(Buffer.from(value, 'utf8')).join(',')})`)
     })
-    
-    console.log('[widget] All raw parameters received:', rawParams)
-    console.log('[widget] Full URL:', request.url)
 
     const botToken = process.env.TELEGRAM_BOT_TOKEN
     if (!botToken) {
@@ -42,26 +35,6 @@ export async function GET(request: NextRequest) {
       console.warn("[widget] TELEGRAM_BOT_TOKEN has leading/trailing whitespace. Trimmed automatically.")
     }
 
-    // Log environment info for debugging
-    const botId = normalizedBotToken.split(':')[0]
-    const expectedBotUsername = process.env.TELEGRAM_BOT_USERNAME || process.env.NEXT_PUBLIC_TELEGRAM_BOT_USERNAME
-    console.log('[widget] Environment check:', {
-      botId: botId,
-      botTokenLength: normalizedBotToken.length,
-      expectedBotUsername: expectedBotUsername || 'NOT SET',
-      TELEGRAM_BOT_USERNAME: process.env.TELEGRAM_BOT_USERNAME || 'NOT SET',
-      NEXT_PUBLIC_TELEGRAM_BOT_USERNAME: process.env.NEXT_PUBLIC_TELEGRAM_BOT_USERNAME || 'NOT SET',
-    })
-
-    // Verify Telegram widget data
-    console.log('[widget] Received widget data:', {
-      keys: Object.keys(widgetData),
-      hasHash: !!widgetData.hash,
-      botTokenConfigured: !!normalizedBotToken,
-      userId: widgetData.id,
-      username: widgetData.username,
-    })
-    
     if (!verifyTelegramWidgetData(widgetData, normalizedBotToken)) {
       console.error('[widget] Verification failed for data:', {
         keys: Object.keys(widgetData),
@@ -72,8 +45,6 @@ export async function GET(request: NextRequest) {
       )
     }
     
-    console.log('[widget] Verification successful')
-
     // Parse user data
     const telegramUser = parseTelegramWidgetData(widgetData)
     if (!telegramUser) {
@@ -87,16 +58,6 @@ export async function GET(request: NextRequest) {
     const now = new Date()
     const serverTime = Math.floor(now.getTime() / 1000)
     const hoursDiff = (now.getTime() - authDate.getTime()) / (1000 * 60 * 60)
-    
-    console.log('[widget] Time check:', {
-      serverTime: serverTime,
-      serverTimeISO: now.toISOString(),
-      authDate: telegramUser.auth_date,
-      authDateISO: authDate.toISOString(),
-      timeDiffSeconds: serverTime - telegramUser.auth_date,
-      timeDiffHours: hoursDiff.toFixed(2),
-      timeDiffMinutes: ((now.getTime() - authDate.getTime()) / (1000 * 60)).toFixed(2),
-    })
     
     // Temporarily disable auth_date validation for testing (set DISABLE_AUTH_DATE_CHECK=true in .env)
     const disableAuthDateCheck = process.env.DISABLE_AUTH_DATE_CHECK === 'true'
@@ -156,11 +117,6 @@ export async function GET(request: NextRequest) {
     
     // Store a temporary auth token (we'll use a simple approach with user ID + timestamp hash)
     const authToken = Buffer.from(`${user.id}:${Date.now()}`).toString('base64')
-    
-    console.log('[widget] Redirecting to signin with token, user:', user.id, {
-      baseUrl,
-      baseDomain,
-    })
     
     // Store in a cookie or redirect with token
     const response = NextResponse.redirect(

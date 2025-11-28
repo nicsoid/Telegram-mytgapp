@@ -14,21 +14,8 @@ export async function POST(request: NextRequest) {
     // Verify token from cookie or request
     const cookieStore = await cookies()
     const cookieToken = cookieStore.get('telegram_widget_auth')?.value
-    const rawCookieHeader = request.headers.get('cookie')
-
-    console.log('[verify-widget-token] Incoming request:', {
-      hasToken: !!token,
-      tokenPreview: token.substring(0, 10) + '...',
-      hasCookieToken: !!cookieToken,
-      cookieTokenPreview: cookieToken ? cookieToken.substring(0, 10) + '...' : null,
-      rawCookieHeader: rawCookieHeader?.split(';').length,
-    })
 
     if (!cookieToken || cookieToken !== token) {
-      console.warn('[verify-widget-token] Cookie/token mismatch', {
-        hasCookieToken: !!cookieToken,
-        hasToken: !!token,
-      })
       return NextResponse.json({ error: "Invalid token" }, { status: 401 })
     }
 
@@ -66,10 +53,8 @@ export async function POST(request: NextRequest) {
       })
 
       response.cookies.delete('telegram_widget_auth')
-      console.log('[verify-widget-token] Token validated, user:', user.id)
       return response
     } catch (error) {
-      console.error('[verify-widget-token] Token decode error:', error)
       return NextResponse.json({ error: "Invalid token format" }, { status: 401 })
     }
   } catch (error) {

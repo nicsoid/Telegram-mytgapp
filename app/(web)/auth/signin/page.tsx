@@ -89,8 +89,6 @@ function SignInForm() {
         redirect: false,
       })
 
-      console.log('[signin] signIn result (widget):', result)
-
       if (result?.error) {
         setError("Failed to create session. Please try again.")
       } else if (result?.ok) {
@@ -110,7 +108,6 @@ function SignInForm() {
           }
         }
         
-        console.log('[signin] Redirecting to:', callbackUrl)
         router.replace(callbackUrl)
       }
     } catch (err) {
@@ -135,8 +132,6 @@ function SignInForm() {
         initData,
         redirect: false,
       })
-
-      console.log('[signin] signIn result (webapp):', result)
 
       if (result?.error) {
         setError("Authentication failed. Please try again.")

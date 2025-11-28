@@ -2,9 +2,11 @@
 
 import Link from "next/link"
 import { useSession, signOut } from "next-auth/react"
+import { useRouter } from "next/navigation"
 
 export default function LandingPage() {
   const { data: session } = useSession()
+  const router = useRouter()
   const displayName =
     session?.user?.name ||
     session?.user?.telegramUsername ||
@@ -29,6 +31,10 @@ export default function LandingPage() {
     signOut({ callbackUrl: "/" })
   }
 
+  const handleGoToApp = () => {
+    router.push(appPath)
+  }
+
   return (
     <div className="min-h-screen bg-white">
       {/* Navigation */}
@@ -46,12 +52,12 @@ export default function LandingPage() {
                   <span className="hidden sm:block text-sm text-gray-600">
                     Signed in as <span className="font-medium text-gray-900">{displayName}</span>
                   </span>
-                  <Link
-                    href={appPath}
+                  <button
+                    onClick={handleGoToApp}
                     className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"
                   >
                     {appLabel}
-                  </Link>
+                  </button>
                   <button
                     onClick={handleSignOut}
                     className="px-3 py-2 text-sm text-gray-500 hover:text-gray-900 transition-colors"
@@ -115,12 +121,12 @@ export default function LandingPage() {
                 </>
               ) : (
                 <>
-                  <Link
-                    href={appPath}
+                  <button
+                    onClick={handleGoToApp}
                     className="px-8 py-4 bg-blue-600 text-white rounded-lg text-lg font-semibold hover:bg-blue-700 transition-colors shadow-lg"
                   >
                     {appLabel}
-                  </Link>
+                  </button>
                   <button
                     onClick={handleSignOut}
                     className="px-8 py-4 bg-white text-gray-700 rounded-lg text-lg font-semibold border-2 border-gray-300 hover:border-gray-400 transition-colors"
