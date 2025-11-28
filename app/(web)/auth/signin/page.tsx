@@ -110,15 +110,8 @@ function SignInForm() {
           }
         }
         
-        // Clean up URL to prevent reprocessing
-        const newUrl = new URL(window.location.href)
-        newUrl.searchParams.delete('widget_token')
-        newUrl.searchParams.delete('callbackUrl')
-        window.history.replaceState({}, '', newUrl.toString())
-        
         console.log('[signin] Redirecting to:', callbackUrl)
-        router.push(callbackUrl)
-        router.refresh()
+        router.replace(callbackUrl)
       }
     } catch (err) {
       console.error("Widget sign-in error:", err)
@@ -149,8 +142,7 @@ function SignInForm() {
         setError("Authentication failed. Please try again.")
       } else if (result?.ok) {
         const callbackUrl = searchParams.get("callbackUrl") || "/"
-        router.push(callbackUrl)
-        router.refresh()
+        router.replace(callbackUrl)
       }
     } catch (err) {
       setError("An error occurred. Please try again.")
