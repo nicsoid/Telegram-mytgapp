@@ -3,11 +3,13 @@
 import { useSession } from "next-auth/react"
 import { useState, useEffect } from "react"
 import Link from "next/link"
+import CreditRequestModal from "@/components/app/CreditRequestModal"
 
 export default function TelegramMiniAppPage() {
   const { data: session } = useSession()
   const [credits, setCredits] = useState(0)
   const [loading, setLoading] = useState(true)
+  const [showCreditModal, setShowCreditModal] = useState(false)
 
   useEffect(() => {
     if (session?.user) {
@@ -29,31 +31,27 @@ export default function TelegramMiniAppPage() {
     }
   }
 
-  const handleRequestCredits = async () => {
-    const amount = prompt("How many credits would you like to request?")
-    if (!amount || isNaN(parseInt(amount))) return
-
-    const reason = prompt("Reason (optional):") || undefined
-
+  const handleRequestCredits = async (amount: number, reason?: string) => {
     try {
       const res = await fetch("/api/credits/request", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
         body: JSON.stringify({
-          amount: parseInt(amount),
+          amount,
           reason,
         }),
       })
 
       if (res.ok) {
-        alert("Credit request submitted successfully!")
+        fetchCredits()
+        return Promise.resolve()
       } else {
         const data = await res.json()
-        alert(data.error || "Failed to submit request")
+        throw new Error(data.error || "Failed to submit request")
       }
-    } catch (error) {
-      alert("An error occurred")
+    } catch (error: any) {
+      throw new Error(error.message || "An error occurred")
     }
   }
 
@@ -86,7 +84,7 @@ export default function TelegramMiniAppPage() {
               </p>
             </div>
             <button
-              onClick={handleRequestCredits}
+              onClick={() => setShowCreditModal(true)}
               className="rounded bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700"
             >
               Request Credits
@@ -116,6 +114,14 @@ export default function TelegramMiniAppPage() {
           )}
         </div>
       </div>
+
+      {/* Credit Request Modal */}
+      <CreditRequestModal
+        isOpen={showCreditModal}
+        onClose={() => setShowCreditModal(false)}
+        onSubmit={handleRequestCredits}
+        currentCredits={credits}
+      />
     </div>
   )
 }

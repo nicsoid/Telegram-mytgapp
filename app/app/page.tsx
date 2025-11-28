@@ -4,6 +4,7 @@ import { useSession } from "next-auth/react"
 import { useState, useEffect } from "react"
 import Link from "next/link"
 import { format } from "date-fns"
+import CreditRequestModal from "@/components/app/CreditRequestModal"
 
 type Stats = {
   credits: number
@@ -25,6 +26,7 @@ export default function AppPage() {
     sentPostsCount: 0,
   })
   const [loading, setLoading] = useState(true)
+  const [showCreditModal, setShowCreditModal] = useState(false)
 
   useEffect(() => {
     if (session?.user) {
@@ -59,32 +61,27 @@ export default function AppPage() {
     }
   }
 
-  const handleRequestCredits = async () => {
-    const amount = prompt("How many credits would you like to request?")
-    if (!amount || isNaN(parseInt(amount))) return
-
-    const reason = prompt("Reason (optional):") || undefined
-
+  const handleRequestCredits = async (amount: number, reason?: string) => {
     try {
       const res = await fetch("/api/credits/request", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
         body: JSON.stringify({
-          amount: parseInt(amount),
+          amount,
           reason,
         }),
       })
 
       if (res.ok) {
-        alert("Credit request submitted to admin!")
         loadStats()
+        return Promise.resolve()
       } else {
         const data = await res.json()
-        alert(data.error || "Failed to submit request")
+        throw new Error(data.error || "Failed to submit request")
       }
-    } catch (error) {
-      alert("An error occurred")
+    } catch (error: any) {
+      throw new Error(error.message || "An error occurred")
     }
   }
 
@@ -203,7 +200,7 @@ export default function AppPage() {
             <p className="mt-2 text-sm text-gray-500">Available credits</p>
           </div>
           <button
-            onClick={handleRequestCredits}
+            onClick={() => setShowCreditModal(true)}
             className="mt-6 w-full rounded-lg bg-gradient-to-r from-blue-600 to-indigo-600 px-4 py-3 text-sm font-semibold text-white shadow-sm transition-all hover:from-blue-700 hover:to-indigo-700 hover:shadow-md"
           >
             Request Credits
@@ -255,6 +252,14 @@ export default function AppPage() {
           </div>
         </div>
       </div>
+
+      {/* Credit Request Modal */}
+      <CreditRequestModal
+        isOpen={showCreditModal}
+        onClose={() => setShowCreditModal(false)}
+        onSubmit={handleRequestCredits}
+        currentCredits={stats.credits}
+      />
     </div>
   )
 }
