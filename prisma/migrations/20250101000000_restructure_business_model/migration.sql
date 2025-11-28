@@ -3,7 +3,21 @@ ALTER TABLE "Publisher" ADD COLUMN "freePostsUsed" INTEGER NOT NULL DEFAULT 0,
 ADD COLUMN "freePostsLimit" INTEGER NOT NULL DEFAULT 3,
 ADD COLUMN "pricePerCredit" DOUBLE PRECISION;
 
--- AlterTable
+-- AlterTable: Make publisherId required in CreditRequest
+-- First, delete pending requests without publisherId (these were likely admin requests)
+DELETE FROM "CreditRequest" WHERE "publisherId" IS NULL AND "status" = 'PENDING';
+
+-- For non-pending requests without publisherId, mark them as rejected
+UPDATE "CreditRequest" 
+SET 
+  "status" = 'REJECTED',
+  "notes" = COALESCE("notes", '') || ' [Auto-rejected: Admin credit granting removed]'
+WHERE "publisherId" IS NULL;
+
+-- Delete any remaining null values
+DELETE FROM "CreditRequest" WHERE "publisherId" IS NULL;
+
+-- Now we can safely make publisherId NOT NULL
 ALTER TABLE "CreditRequest" ALTER COLUMN "publisherId" SET NOT NULL;
 
 -- CreateTable
