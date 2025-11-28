@@ -173,9 +173,9 @@ model TelegramPost {
   advertiserId  String? // If paid ad, null if owner's own post
   content       String     @db.Text
   mediaUrls     String[] // Array of image/video URLs
-  scheduledAt   DateTime
+  scheduledAt   DateTime // Primary/initial scheduled time (for backward compatibility)
   postedAt      DateTime?
-  status        PostStatus @default(DRAFT)
+  status        PostStatus @default(DRAFT) // Overall post status
   failureReason String?    @db.Text
   isPaidAd      Boolean    @default(false)
   creditsPaid   Int? // Credits paid for this post (if paid ad)
@@ -194,10 +194,29 @@ model TelegramPost {
   group      TelegramGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
   owner      User          @relation("OwnerPosts", fields: [ownerId], references: [id], onDelete: Cascade)
   advertiser User?         @relation("AdvertiserPosts", fields: [advertiserId], references: [id], onDelete: SetNull)
+  scheduledTimes ScheduledPostTime[] // Multiple scheduled times for this post
 
   @@index([groupId])
   @@index([ownerId])
   @@index([advertiserId])
+  @@index([scheduledAt])
+  @@index([status])
+}
+
+// Multiple scheduled times for a single post
+model ScheduledPostTime {
+  id            String     @id @default(cuid())
+  postId        String
+  scheduledAt   DateTime   // When this specific instance should be posted
+  postedAt      DateTime?  // When it was actually posted
+  status        PostStatus @default(SCHEDULED) // Status of this specific scheduled time
+  failureReason String?    @db.Text
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+
+  post TelegramPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  @@index([postId])
   @@index([scheduledAt])
   @@index([status])
 }

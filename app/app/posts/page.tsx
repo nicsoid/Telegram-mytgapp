@@ -15,6 +15,14 @@ type TelegramGroup = {
   advertiserMessage: string | null
 }
 
+type ScheduledTime = {
+  id: string
+  scheduledAt: string
+  postedAt: string | null
+  status: string
+  failureReason: string | null
+}
+
 type TelegramPost = {
   id: string
   content: string
@@ -23,13 +31,14 @@ type TelegramPost = {
   status: string
   isPaidAd: boolean
   group: { id: string; name: string }
+  scheduledTimes?: ScheduledTime[] // Multiple scheduled times
 }
 
 const initialPost = {
   groupId: "",
   content: "",
   mediaUrls: [] as string[],
-  scheduledAt: "",
+  scheduledTimes: [] as string[], // Array of datetime strings
   isPaidAd: false,
   isRecurring: false,
   recurrencePattern: "daily" as "daily" | "weekly" | "monthly" | "custom",
@@ -53,6 +62,7 @@ export default function AppPostsPage() {
   const contentRef = useRef<HTMLTextAreaElement | null>(null)
   const [editingPost, setEditingPost] = useState<TelegramPost | null>(null)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState<string | null>(null)
+  const [newScheduledTime, setNewScheduledTime] = useState("")
 
   const verifiedGroups = useMemo(() => groups.filter((g) => g.isVerified), [groups])
 
@@ -162,14 +172,31 @@ export default function AppPostsPage() {
     }
   }
 
+  const handleAddScheduledTime = () => {
+    if (newScheduledTime) {
+      setForm((prev) => ({
+        ...prev,
+        scheduledTimes: [...prev.scheduledTimes, newScheduledTime],
+      }))
+      setNewScheduledTime("")
+    }
+  }
+
+  const handleRemoveScheduledTime = (index: number) => {
+    setForm((prev) => ({
+      ...prev,
+      scheduledTimes: prev.scheduledTimes.filter((_, i) => i !== index),
+    }))
+  }
+
   const handlePostSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!form.groupId) {
       setMessage("Please select a verified group.")
       return
     }
-    if (!form.scheduledAt) {
-      setMessage("Please choose a schedule time.")
+    if (form.scheduledTimes.length === 0) {
+      setMessage("Please add at least one scheduled time.")
       return
     }
     if (!form.content.trim()) {
@@ -191,7 +218,7 @@ export default function AppPostsPage() {
           groupId: form.groupId,
           content: form.content.trim(),
           mediaUrls: form.mediaUrls.filter(Boolean),
-          scheduledAt: new Date(form.scheduledAt).toISOString(),
+          scheduledTimes: form.scheduledTimes.map((time) => new Date(time).toISOString()),
           isPaidAd: form.isPaidAd,
           ...(form.isRecurring && {
             isRecurring: true,
@@ -206,6 +233,7 @@ export default function AppPostsPage() {
       if (res.ok) {
         setForm((prev) => ({ ...initialPost, groupId: prev.groupId }))
         setEditingPost(null)
+        setNewScheduledTime("")
         setMessage(editingPost ? "✅ Post updated successfully!" : "✅ Post scheduled successfully!")
         setTimeout(() => setMessage(null), 5000)
         loadPosts()
@@ -326,13 +354,44 @@ export default function AppPostsPage() {
                         <div>
                           <h3 className="text-base font-semibold text-gray-900">{post.group.name}</h3>
                           <p className="text-xs text-gray-500">
-                            {format(new Date(post.scheduledAt), "MMM d, yyyy 'at' h:mm a")}
+                            Primary: {format(new Date(post.scheduledAt), "MMM d, yyyy 'at' h:mm a")}
                           </p>
+                          {post.scheduledTimes && post.scheduledTimes.length > 1 && (
+                            <p className="text-xs text-blue-600 mt-1">
+                              +{post.scheduledTimes.length - 1} more time{post.scheduledTimes.length - 1 > 1 ? 's' : ''}
+                            </p>
+                          )}
                         </div>
                       </div>
                       <p className="text-sm text-gray-700 whitespace-pre-line line-clamp-3">
                         <RichText text={post.content} className="text-sm" />
                       </p>
+                      {/* Show all scheduled times with their statuses */}
+                      {post.scheduledTimes && post.scheduledTimes.length > 0 && (
+                        <div className="mt-3 space-y-1">
+                          {post.scheduledTimes.map((st) => (
+                            <div key={st.id} className="flex items-center justify-between text-xs">
+                              <span className="text-gray-600">
+                                {format(new Date(st.scheduledAt), "MMM d, yyyy 'at' h:mm a")}
+                              </span>
+                              <span
+                                className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold ${
+                                  st.status === "SENT"
+                                    ? "bg-green-100 text-green-800"
+                                    : st.status === "FAILED"
+                                      ? "bg-red-100 text-red-800"
+                                      : st.status === "SCHEDULED"
+                                        ? "bg-blue-100 text-blue-800"
+                                        : "bg-gray-100 text-gray-800"
+                                }`}
+                              >
+                                {st.status === "SENT" && "✓ "}
+                                {st.status}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                       {post.mediaUrls.length > 0 && (
                         <div className="mt-3 flex items-center space-x-2 text-xs text-gray-500">
                           <span>📎</span>
@@ -368,7 +427,7 @@ export default function AppPostsPage() {
                                 groupId: post.group.id,
                                 content: post.content,
                                 mediaUrls: post.mediaUrls,
-                                scheduledAt: "",
+                                scheduledTimes: [], // Start with empty times, user can add new ones
                               })
                               // Scroll to form
                               document.getElementById("post-form")?.scrollIntoView({ behavior: "smooth" })
@@ -382,11 +441,16 @@ export default function AppPostsPage() {
                             onClick={() => {
                               // Edit post
                               setEditingPost(post)
+                              // Use scheduledTimes if available, otherwise use scheduledAt
+                              const times = post.scheduledTimes && post.scheduledTimes.length > 0
+                                ? post.scheduledTimes.map((st) => new Date(st.scheduledAt).toISOString().slice(0, 16))
+                                : [new Date(post.scheduledAt).toISOString().slice(0, 16)]
+                              
                               setForm({
                                 groupId: post.group.id,
                                 content: post.content,
                                 mediaUrls: post.mediaUrls,
-                                scheduledAt: new Date(post.scheduledAt).toISOString().slice(0, 16),
+                                scheduledTimes: times,
                                 isPaidAd: post.isPaidAd,
                                 isRecurring: false,
                                 recurrencePattern: "daily",
@@ -487,14 +551,51 @@ export default function AppPostsPage() {
             </div>
 
             <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-1">Schedule Time</label>
-              <input
-                type="datetime-local"
-                value={form.scheduledAt}
-                onChange={(e) => setForm((prev) => ({ ...prev, scheduledAt: e.target.value }))}
-                className="w-full rounded-lg border border-gray-300 px-4 py-2.5 text-sm transition-all focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
-                required
-              />
+              <label className="block text-sm font-semibold text-gray-700 mb-1">Scheduled Times</label>
+              <p className="text-xs text-gray-500 mb-2">Add multiple posting times for this post</p>
+              
+              {/* List of scheduled times */}
+              {form.scheduledTimes.length > 0 && (
+                <div className="mb-3 space-y-2">
+                  {form.scheduledTimes.map((time, index) => (
+                    <div key={index} className="flex items-center gap-2 rounded-lg border border-gray-200 bg-gray-50 p-2">
+                      <span className="flex-1 text-sm text-gray-700">
+                        {format(new Date(time), "MMM d, yyyy 'at' h:mm a")}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveScheduledTime(index)}
+                        className="rounded px-2 py-1 text-xs text-red-600 hover:bg-red-50"
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Add new scheduled time */}
+              <div className="flex gap-2">
+                <input
+                  type="datetime-local"
+                  value={newScheduledTime}
+                  onChange={(e) => setNewScheduledTime(e.target.value)}
+                  className="flex-1 rounded-lg border border-gray-300 px-4 py-2.5 text-sm transition-all focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
+                />
+                <button
+                  type="button"
+                  onClick={handleAddScheduledTime}
+                  disabled={!newScheduledTime}
+                  className="rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white transition-all hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Add Time
+                </button>
+              </div>
+              {form.scheduledTimes.length === 0 && (
+                <p className="mt-2 text-xs text-red-600">
+                  ⚠️ At least one scheduled time is required
+                </p>
+              )}
             </div>
 
             {/* Recurring Schedule Options */}

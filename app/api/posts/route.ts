@@ -9,7 +9,8 @@ const createPostSchema = z.object({
   groupId: z.string(),
   content: z.string().min(1),
   mediaUrls: z.array(z.string()).optional().default([]),
-  scheduledAt: z.string().datetime(),
+  scheduledAt: z.string().datetime().optional(), // For backward compatibility
+  scheduledTimes: z.array(z.string().datetime()).min(1), // Multiple scheduled times
   isPaidAd: z.boolean().default(false),
   advertiserId: z.string().optional(),
   // Recurring scheduling
@@ -67,6 +68,9 @@ export async function GET(request: NextRequest) {
             telegramUsername: true,
           },
         },
+        scheduledTimes: {
+          orderBy: { scheduledAt: "asc" },
+        },
       },
       orderBy: { scheduledAt: "asc" },
     })
@@ -92,7 +96,8 @@ export async function POST(request: NextRequest) {
     groupId,
     content,
     mediaUrls,
-    scheduledAt,
+    scheduledAt, // For backward compatibility
+    scheduledTimes, // Array of scheduled times
     isPaidAd,
     advertiserId,
     isRecurring,
@@ -102,6 +107,20 @@ export async function POST(request: NextRequest) {
     recurrenceCount,
     duplicateFrom,
   } = createPostSchema.parse(body)
+
+  // Use scheduledTimes if provided, otherwise fall back to scheduledAt
+  const timesToSchedule = scheduledTimes && scheduledTimes.length > 0 
+    ? scheduledTimes 
+    : scheduledAt 
+      ? [scheduledAt] 
+      : []
+  
+  if (timesToSchedule.length === 0) {
+    return NextResponse.json(
+      { error: "At least one scheduled time is required" },
+      { status: 400 }
+    )
+  }
 
   // If duplicating, fetch the original post
   let duplicatePost: any = null
@@ -326,10 +345,13 @@ export async function POST(request: NextRequest) {
   // Create post and update free posts counter if it's a free post
   const post = await prisma.$transaction(async (tx) => {
     const ownerId = group.userId
+    // Use first scheduled time as primary scheduledAt (for backward compatibility)
+    const primaryScheduledAt = new Date(timesToSchedule[0])
+    
     // Calculate next occurrence for recurring posts
     let nextOccurrence: Date | null = null
     if (isRecurring && recurrencePattern) {
-      const baseDate = new Date(scheduledAt)
+      const baseDate = primaryScheduledAt
       switch (recurrencePattern) {
         case "daily":
           nextOccurrence = new Date(baseDate)
@@ -352,6 +374,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // Create the post with multiple scheduled times
     const newPost = await tx.telegramPost.create({
       data: {
         groupId,
@@ -359,7 +382,7 @@ export async function POST(request: NextRequest) {
         advertiserId: isPaidAd ? advertiserId : null,
         content,
         mediaUrls: mediaUrls || [],
-        scheduledAt: new Date(scheduledAt),
+        scheduledAt: primaryScheduledAt,
         status: PostStatus.SCHEDULED,
         isPaidAd,
         creditsPaid,
@@ -369,6 +392,16 @@ export async function POST(request: NextRequest) {
         recurrenceEndDate: recurrenceEndDate ? new Date(recurrenceEndDate) : null,
         recurrenceCount: recurrenceCount || null,
         nextOccurrence,
+        // Create scheduled times for each time slot
+        scheduledTimes: {
+          create: timesToSchedule.map((timeStr) => ({
+            scheduledAt: new Date(timeStr),
+            status: PostStatus.SCHEDULED,
+          })),
+        },
+      },
+      include: {
+        scheduledTimes: true,
       },
     })
 

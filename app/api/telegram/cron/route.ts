@@ -48,8 +48,8 @@ export async function GET(request: NextRequest) {
     const now = new Date()
     const fiveMinutesFromNow = new Date(now.getTime() + 5 * 60 * 1000)
 
-    // Find posts scheduled to be sent in the next 5 minutes
-    const postsToSend = await prisma.telegramPost.findMany({
+    // Find scheduled times that need to be sent in the next 5 minutes
+    const scheduledTimesToSend = await prisma.scheduledPostTime.findMany({
       where: {
         status: PostStatus.SCHEDULED,
         scheduledAt: {
@@ -58,10 +58,14 @@ export async function GET(request: NextRequest) {
         },
       },
       include: {
-        group: {
-          select: {
-            telegramChatId: true,
-            name: true,
+        post: {
+          include: {
+            group: {
+              select: {
+                telegramChatId: true,
+                name: true,
+              },
+            },
           },
         },
       },
@@ -74,7 +78,8 @@ export async function GET(request: NextRequest) {
       errors: [] as string[],
     }
 
-    for (const post of postsToSend) {
+    for (const scheduledTime of scheduledTimesToSend) {
+      const post = scheduledTime.post
       try {
         const captionHtml = convertRichTextToTelegram(post.content || "")
         const chatId = post.group.telegramChatId
@@ -83,6 +88,10 @@ export async function GET(request: NextRequest) {
         // Skip posts for groups without chat ID (not verified yet)
         if (!chatId) {
           results.errors.push(`Post ${post.id}: Group ${post.group.name} is not verified (no chat ID)`)
+          await prisma.scheduledPostTime.update({
+            where: { id: scheduledTime.id },
+            data: { status: PostStatus.FAILED, failureReason: "Group not verified" },
+          })
           continue
         }
 
@@ -116,14 +125,32 @@ export async function GET(request: NextRequest) {
           await sendTelegramMediaGroup(chatId, mediaItems)
         }
 
-        // Update post status
-        await prisma.telegramPost.update({
-          where: { id: post.id },
+        // Update the scheduled time as sent
+        await prisma.scheduledPostTime.update({
+          where: { id: scheduledTime.id },
           data: {
             status: PostStatus.SENT,
             postedAt: new Date(),
           },
         })
+
+        // Update post status if all scheduled times are sent
+        const remainingScheduled = await prisma.scheduledPostTime.count({
+          where: {
+            postId: post.id,
+            status: PostStatus.SCHEDULED,
+          },
+        })
+
+        if (remainingScheduled === 0) {
+          await prisma.telegramPost.update({
+            where: { id: post.id },
+            data: {
+              status: PostStatus.SENT,
+              postedAt: new Date(),
+            },
+          })
+        }
 
         // Update group stats
         await prisma.telegramGroup.update({
@@ -135,11 +162,11 @@ export async function GET(request: NextRequest) {
 
         results.sent++
       } catch (error: any) {
-        console.error(`Failed to send post ${post.id}:`, error)
+        console.error(`Failed to send scheduled time ${scheduledTime.id} for post ${post.id}:`, error)
 
-        // Update post status to failed
-        await prisma.telegramPost.update({
-          where: { id: post.id },
+        // Update scheduled time status to failed
+        await prisma.scheduledPostTime.update({
+          where: { id: scheduledTime.id },
           data: {
             status: PostStatus.FAILED,
             failureReason: error.message || "Unknown error",
@@ -147,7 +174,7 @@ export async function GET(request: NextRequest) {
         })
 
         results.failed++
-        results.errors.push(`Post ${post.id}: ${error.message}`)
+        results.errors.push(`Scheduled time ${scheduledTime.id} (Post ${post.id}): ${error.message || "Unknown error"}`)
       }
 
       results.processed++
