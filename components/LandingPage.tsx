@@ -375,20 +375,22 @@ export default function LandingPage() {
               Create Your Account
             </Link>
           ) : (
-            <Link
-              href="/app"
-              className="inline-block px-10 py-5 bg-white text-blue-600 rounded-lg text-lg font-semibold hover:bg-gray-50 transition-colors shadow-xl"
-            >
-              Open User Area
-            </Link>
-            {session.user.role === "ADMIN" && (
+            <>
               <Link
-                href="/admin"
-                className="inline-block px-10 py-5 bg-purple-600 text-white rounded-lg text-lg font-semibold hover:bg-purple-700 transition-colors shadow-xl ml-4"
+                href="/app"
+                className="inline-block px-10 py-5 bg-white text-blue-600 rounded-lg text-lg font-semibold hover:bg-gray-50 transition-colors shadow-xl"
               >
-                Open Admin Area
+                Open User Area
               </Link>
-            )}
+              {session.user.role === "ADMIN" && (
+                <Link
+                  href="/admin"
+                  className="inline-block px-10 py-5 bg-purple-600 text-white rounded-lg text-lg font-semibold hover:bg-purple-700 transition-colors shadow-xl ml-4"
+                >
+                  Open Admin Area
+                </Link>
+              )}
+            </>
           )}
         </div>
       </section>
