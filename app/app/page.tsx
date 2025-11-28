@@ -87,8 +87,100 @@ export default function AppPage() {
 
   if (!session?.user) {
     return (
-      <div className="flex min-h-screen items-center justify-center">
-        <p>Please sign in</p>
+      <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-gray-50 via-white to-gray-50">
+        <div className="text-center">
+          <div className="mb-4 text-4xl">🔐</div>
+          <p className="text-gray-600 mb-2">Please sign in</p>
+          <Link
+            href="/auth/signin"
+            className="inline-flex items-center rounded-lg bg-gradient-to-r from-blue-600 to-indigo-600 px-6 py-3 text-sm font-semibold text-white shadow-md transition-all hover:from-blue-700 hover:to-indigo-700 hover:shadow-lg"
+          >
+            Sign In
+          </Link>
+        </div>
+      </div>
+    )
+  }
+
+  // Regular users should see different interface
+  if (session.user.role === "USER") {
+    return (
+      <div className="space-y-8">
+        {/* Welcome Header */}
+        <div className="rounded-2xl bg-gradient-to-br from-blue-600 via-indigo-600 to-purple-600 p-8 text-white shadow-xl">
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-3xl font-bold">Welcome, {session.user.name || session.user.telegramUsername || "User"}!</h1>
+              <p className="mt-2 text-blue-100">
+                Post ads in Telegram groups managed by publishers.
+              </p>
+            </div>
+            <div className="hidden md:block">
+              <div className="rounded-full bg-white/20 p-4 text-4xl">📢</div>
+            </div>
+          </div>
+        </div>
+
+        {/* Stats Grid */}
+        <div className="grid gap-6 md:grid-cols-2">
+          <div className="group relative overflow-hidden rounded-xl bg-gradient-to-br from-blue-500 to-blue-600 p-6 text-white shadow-lg transition-all hover:scale-105 hover:shadow-xl">
+            <div className="relative z-10">
+              <div className="mb-4 flex items-center justify-between">
+                <span className="text-3xl">💳</span>
+              </div>
+              <div className="text-3xl font-bold">{loading ? "..." : stats.credits.toLocaleString()}</div>
+              <div className="mt-1 text-sm font-medium text-white/90">Credits</div>
+              <div className="mt-1 text-xs text-white/70">Available balance</div>
+            </div>
+          </div>
+          <Link href="/app/posts" className="group relative overflow-hidden rounded-xl bg-gradient-to-br from-green-500 to-green-600 p-6 text-white shadow-lg transition-all hover:scale-105 hover:shadow-xl">
+            <div className="relative z-10">
+              <div className="mb-4 flex items-center justify-between">
+                <span className="text-3xl">📝</span>
+                <svg className="h-5 w-5 opacity-0 transition-opacity group-hover:opacity-100" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                </svg>
+              </div>
+              <div className="text-3xl font-bold">{loading ? "..." : stats.postsCount}</div>
+              <div className="mt-1 text-sm font-medium text-white/90">My Posts</div>
+              <div className="mt-1 text-xs text-white/70">{stats.scheduledPostsCount} scheduled</div>
+            </div>
+          </Link>
+        </div>
+
+        {/* Quick Actions */}
+        <div className="grid gap-6 md:grid-cols-2">
+          <Link
+            href="/app/groups"
+            className="flex items-center justify-between rounded-xl border border-gray-200 bg-white p-6 shadow-sm transition-all hover:border-blue-300 hover:shadow-md"
+          >
+            <div className="flex items-center space-x-4">
+              <div className="text-3xl">👥</div>
+              <div>
+                <div className="font-semibold text-gray-900">Browse Groups</div>
+                <div className="mt-1 text-sm text-gray-500">Find groups to post your ads</div>
+              </div>
+            </div>
+            <svg className="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+            </svg>
+          </Link>
+          <Link
+            href="/auth/publisher/signup"
+            className="flex items-center justify-between rounded-xl border border-purple-200 bg-gradient-to-r from-purple-50 to-indigo-50 p-6 shadow-sm transition-all hover:border-purple-300 hover:shadow-md"
+          >
+            <div className="flex items-center space-x-4">
+              <div className="text-3xl">🚀</div>
+              <div>
+                <div className="font-semibold text-purple-900">Become a Publisher</div>
+                <div className="mt-1 text-sm text-purple-600">Add groups and manage ads</div>
+              </div>
+            </div>
+            <svg className="h-5 w-5 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+            </svg>
+          </Link>
+        </div>
       </div>
     )
   }

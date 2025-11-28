@@ -149,12 +149,17 @@ function SignInForm() {
   const botUsername = process.env.NEXT_PUBLIC_TELEGRAM_BOT_USERNAME || ""
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 px-4">
-      <div className="w-full max-w-md space-y-8 rounded-2xl bg-white p-8 shadow-xl">
+    <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-blue-50 via-white to-indigo-100 px-4">
+      <div className="w-full max-w-md space-y-8 rounded-2xl border border-gray-200 bg-white p-8 shadow-xl">
         <div className="text-center">
+          <div className="mb-4 flex justify-center">
+            <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-600 to-indigo-600 text-white text-2xl font-bold shadow-lg">
+              M
+            </div>
+          </div>
           <h1 className="text-3xl font-bold text-gray-900">MyTgApp</h1>
           <p className="mt-2 text-sm text-gray-600">
-            Sign in to manage your Telegram groups
+            Sign in to post ads in Telegram groups
           </p>
         </div>
 

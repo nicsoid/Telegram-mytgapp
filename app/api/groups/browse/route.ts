@@ -17,9 +17,11 @@ export async function GET(request: NextRequest) {
     },
     include: {
       publisher: {
-        include: {
+        select: {
+          id: true,
           user: {
             select: {
+              id: true,
               name: true,
               telegramUsername: true,
             },
