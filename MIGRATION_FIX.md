@@ -10,17 +10,32 @@ This happens because PostgreSQL cannot automatically cast the default value when
 
 ## Solution
 
-### Option 1: Run the Fix Script (Recommended)
+### Option 1: Run the Docker Fix Script (Recommended for Docker PostgreSQL)
+If you're using Docker PostgreSQL container named `vps-postgres`:
+```bash
+./scripts/fix-migration-docker.sh [database_name]
+```
+
+Default database name is `mytgapp`. If your database has a different name, specify it:
+```bash
+./scripts/fix-migration-docker.sh your_database_name
+```
+
+This script will:
+1. Connect to the Docker PostgreSQL container
+2. Drop the default constraint on the `role` column
+3. Create a new enum without `PUBLISHER`
+4. Convert existing `PUBLISHER` values to `USER`
+5. Set a new default value
+6. Mark the migration as applied
+
+### Option 2: Run the General Fix Script
+For non-Docker setups or if DATABASE_URL is set:
 ```bash
 ./scripts/fix-migration-manually.sh
 ```
 
-This script will:
-1. Drop the default constraint on the `role` column
-2. Create a new enum without `PUBLISHER`
-3. Convert existing `PUBLISHER` values to `USER`
-4. Set a new default value
-5. Mark the migration as applied
+This script automatically detects if Docker container is available and uses it, otherwise falls back to DATABASE_URL.
 
 ### Option 2: Manual SQL Fix
 If you prefer to run SQL manually, use the SQL file:
