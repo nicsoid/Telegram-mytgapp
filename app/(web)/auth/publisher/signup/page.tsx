@@ -62,7 +62,7 @@ function PublisherSignupForm() {
 
     try {
       // First sign in with Telegram
-      const signInResult = await signIn("Telegram", {
+      const signInResult = await signIn("credentials", {
         initData,
         redirect: false,
       })

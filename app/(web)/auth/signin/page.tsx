@@ -84,7 +84,7 @@ function SignInForm() {
         auth_date: Math.floor(Date.now() / 1000),
       }))}&hash=widget_verified`
 
-      const result = await signIn("Telegram", {
+      const result = await signIn("credentials", {
         initData: widgetInitData,
         redirect: false,
       })
@@ -136,7 +136,7 @@ function SignInForm() {
     setError(null)
 
     try {
-      const result = await signIn("Telegram", {
+      const result = await signIn("credentials", {
         initData,
         redirect: false,
       })
