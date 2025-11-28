@@ -75,8 +75,19 @@ export async function GET(request: NextRequest) {
     }
 
     // Find or create user
+    // Use select to only get fields that definitely exist (defensive query)
     let user = await prisma.user.findUnique({
       where: { telegramId: telegramUser.id.toString() },
+      select: {
+        id: true,
+        telegramId: true,
+        telegramUsername: true,
+        name: true,
+        image: true,
+        email: true,
+        telegramVerifiedAt: true,
+        role: true,
+      },
     })
 
     if (!user) {
@@ -89,6 +100,16 @@ export async function GET(request: NextRequest) {
           telegramVerifiedAt: new Date(),
           role: "USER",
         },
+        select: {
+          id: true,
+          telegramId: true,
+          telegramUsername: true,
+          name: true,
+          image: true,
+          email: true,
+          telegramVerifiedAt: true,
+          role: true,
+        },
       })
     } else {
       // Update user info
@@ -99,6 +120,16 @@ export async function GET(request: NextRequest) {
           name: `${telegramUser.first_name} ${telegramUser.last_name || ''}`.trim() || user.name,
           image: telegramUser.photo_url || user.image,
           telegramVerifiedAt: user.telegramVerifiedAt || new Date(),
+        },
+        select: {
+          id: true,
+          telegramId: true,
+          telegramUsername: true,
+          name: true,
+          image: true,
+          email: true,
+          telegramVerifiedAt: true,
+          role: true,
         },
       })
     }

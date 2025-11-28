@@ -29,9 +29,19 @@ const authConfig = {
 
             const userData = JSON.parse(decodeURIComponent(userStr))
             
-            // Find user by telegramId
+            // Find user by telegramId (defensive query - only select existing fields)
             const user = await prisma.user.findUnique({
               where: { telegramId: userData.id.toString() },
+              select: {
+                id: true,
+                email: true,
+                name: true,
+                image: true,
+                role: true,
+                telegramId: true,
+                telegramUsername: true,
+                telegramVerifiedAt: true,
+              },
             })
 
             if (!user) return null
@@ -59,9 +69,19 @@ const authConfig = {
         const telegramUser = parseTelegramInitData(credentials.initData as string)
         if (!telegramUser) return null
 
-        // Find or create user
+        // Find or create user (defensive query - only select existing fields)
         let user = await prisma.user.findUnique({
           where: { telegramId: telegramUser.id.toString() },
+          select: {
+            id: true,
+            email: true,
+            name: true,
+            image: true,
+            role: true,
+            telegramId: true,
+            telegramUsername: true,
+            telegramVerifiedAt: true,
+          },
         })
 
         if (!user) {
@@ -74,6 +94,16 @@ const authConfig = {
               telegramVerifiedAt: new Date(),
               role: "USER",
             },
+            select: {
+              id: true,
+              email: true,
+              name: true,
+              image: true,
+              role: true,
+              telegramId: true,
+              telegramUsername: true,
+              telegramVerifiedAt: true,
+            },
           })
         } else {
           // Update user info
@@ -84,6 +114,16 @@ const authConfig = {
               name: `${telegramUser.first_name} ${telegramUser.last_name || ''}`.trim() || user.name,
               image: telegramUser.photo_url || user.image,
               telegramVerifiedAt: user.telegramVerifiedAt || new Date(),
+            },
+            select: {
+              id: true,
+              email: true,
+              name: true,
+              image: true,
+              role: true,
+              telegramId: true,
+              telegramUsername: true,
+              telegramVerifiedAt: true,
             },
           })
         }

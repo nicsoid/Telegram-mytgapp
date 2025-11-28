@@ -5,9 +5,9 @@
 - User: `postgres`
 - Database: `mytgapp` (or check your `.env` file)
 
-## Quick Fix
+## Quick Fix - Two Steps
 
-### Step 1: Run the Docker Fix Script
+### Step 1: Fix Enum Issue (if migration failed)
 ```bash
 ./scripts/fix-migration-docker.sh
 ```
@@ -17,16 +17,26 @@ If your database has a different name:
 ./scripts/fix-migration-docker.sh your_database_name
 ```
 
-### Step 2: Verify and Deploy
+### Step 2: Apply Full Migration (Adds subscription columns)
 ```bash
-# Check migration status
-npx prisma migrate status
+./scripts/apply-migration-docker.sh
+```
 
-# Deploy remaining migrations
-npx prisma migrate deploy
+Or if your database has a different name:
+```bash
+./scripts/apply-migration-docker.sh your_database_name
+```
 
+### Step 3: Regenerate and Restart
+```bash
 # Regenerate Prisma client
 npx prisma generate
+
+# Restart your application
+# (docker-compose restart mytgapp or npm run dev)
+
+# Verify migration status
+npx prisma migrate status
 ```
 
 ## What the Script Does

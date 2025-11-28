@@ -1,38 +1,87 @@
-# Apply Database Migration
+# Apply Migration - Quick Guide
 
-## Migration: Restructure Business Model
+## The Problem
+Your database doesn't have the new columns (`subscriptionTier`, `subscriptionStatus`, etc.) that were added to the `User` table. The migration needs to be applied.
 
-This migration adds:
-- Free posts tracking for publishers (3 free posts on signup)
-- Price per credit field for publishers
-- Subscription tier configuration table
-- Updates credit transaction types (removes ADMIN_GRANT, adds PUBLISHER_GRANT and FREE_POST)
-- Makes publisherId required in credit requests
+## Quick Fix Steps
 
-## Apply Migration
+### Step 1: Apply the Migration
 
-### Development
+**Option A: Using Docker (Recommended)**
 ```bash
-npx prisma migrate dev
-```
+# Run the migration fix script first (fixes enum issue)
+./scripts/fix-migration-docker.sh
 
-### Production
-```bash
+# Then apply the full migration
 npx prisma migrate deploy
 ```
 
-## Important Notes
+**Option B: Manual SQL Execution**
+```bash
+# Connect to your Docker PostgreSQL
+docker exec -it vps-postgres psql -U postgres -d mytgapp
 
-1. **Existing ADMIN_GRANT transactions**: The migration automatically converts existing `ADMIN_GRANT` transactions to `PUBLISHER_GRANT`. If you have existing credit requests without a publisherId, they will be deleted (since admins no longer grant credits).
+# Then run the migration SQL file
+\i /path/to/prisma/migrations/20251128180000_remove_publisher_role/migration.sql
+```
 
-2. **Free Posts**: All existing publishers will get `freePostsUsed = 0` and `freePostsLimit = 3` by default.
+Or copy-paste the SQL from `prisma/migrations/20251128180000_remove_publisher_role/migration.sql` into the psql prompt.
 
-3. **Credit Requests**: Any existing credit requests without a publisherId will be deleted. Make sure to process or migrate them before applying this migration.
+### Step 2: Regenerate Prisma Client
+```bash
+npx prisma generate
+```
 
-## Rollback
+### Step 3: Restart Your Application
+```bash
+# If using Docker Compose
+docker-compose restart mytgapp
 
-If you need to rollback, you'll need to manually:
-1. Revert the enum changes
-2. Make publisherId optional again
-3. Restore ADMIN_GRANT transactions if needed
+# Or if running directly
+npm run dev
+```
 
+## What the Migration Does
+
+1. ✅ Removes `PUBLISHER` role from enum (converts to `USER`)
+2. ✅ Adds subscription fields to `User` table:
+   - `subscriptionTier` (default: 'FREE')
+   - `subscriptionStatus` (default: 'ACTIVE')
+   - `subscriptionExpiresAt`
+   - `revenueSharePercent`
+   - `totalEarnings`
+   - `totalSpent`
+   - `freePostsUsed` (default: 0)
+   - `freePostsLimit` (default: 3)
+   - `pricePerCredit`
+   - `telegramVerified` (default: false)
+   - `isVerified` (default: false)
+3. ✅ Updates `TelegramGroup.publisherId` → `TelegramGroup.userId`
+4. ✅ Updates `TelegramPost.publisherId` → `TelegramPost.ownerId`
+5. ✅ Updates `Subscription.publisherId` → `Subscription.userId`
+6. ✅ Updates `CreditRequest.publisherId` → `CreditRequest.groupOwnerId`
+7. ✅ Drops `Publisher` and `PublisherManagedUser` tables
+
+## Verify Migration
+
+After applying, verify:
+```bash
+npx prisma migrate status
+```
+
+Should show all migrations as applied.
+
+## Troubleshooting
+
+**If migration fails with enum error:**
+```bash
+./scripts/fix-migration-docker.sh
+```
+
+**If columns still don't exist:**
+Check if migration was partially applied:
+```bash
+docker exec -it vps-postgres psql -U postgres -d mytgapp -c "\d \"User\""
+```
+
+Look for `subscriptionTier` column. If missing, the migration didn't complete.
