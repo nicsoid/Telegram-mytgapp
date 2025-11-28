@@ -4,22 +4,20 @@ import { useState, useEffect } from "react"
 import { useSession } from "next-auth/react"
 import Link from "next/link"
 
-type Publisher = {
+type User = {
   id: string
+  name: string | null
+  email: string | null
+  telegramUsername: string | null
+  credits: number
   subscriptionTier: string
   subscriptionStatus: string
   telegramVerified: boolean
-  emailVerified: boolean
   isVerified: boolean
   totalEarnings: number
   totalSpent: number
-  user: {
-    id: string
-    name: string | null
-    email: string | null
-    telegramUsername: string | null
-    credits: number
-  }
+  freePostsUsed: number
+  freePostsLimit: number
   groups: Array<{
     id: string
     name: string
@@ -29,31 +27,35 @@ type Publisher = {
     totalPostsSent: number
     totalRevenue: number
   }>
+  subscriptions: Array<{
+    id: string
+    tier: string
+    status: string
+  }>
   _count: {
     groups: number
-    posts: number
-    managedUsers: number
+    ownerPosts: number
   }
 }
 
 export default function PublisherDashboard() {
   const { data: session } = useSession()
-  const [publisher, setPublisher] = useState<Publisher | null>(null)
+  const [user, setUser] = useState<User | null>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    fetchPublisher()
+    fetchUser()
   }, [])
 
-  const fetchPublisher = async () => {
+  const fetchUser = async () => {
     try {
       const res = await fetch("/api/publishers/me", { credentials: "include" })
       if (res.ok) {
         const data = await res.json()
-        setPublisher(data.publisher)
+        setUser(data.user)
       }
     } catch (error) {
-      console.error("Failed to fetch publisher", error)
+      console.error("Failed to fetch user", error)
     } finally {
       setLoading(false)
     }
@@ -67,10 +69,10 @@ export default function PublisherDashboard() {
     )
   }
 
-  if (!publisher) {
+  if (!user) {
     return (
       <div className="flex min-h-screen items-center justify-center">
-        <p>Publisher profile not found</p>
+        <p>User profile not found</p>
       </div>
     )
   }
@@ -79,20 +81,20 @@ export default function PublisherDashboard() {
     <div className="min-h-screen bg-gray-50">
       <div className="bg-white shadow">
         <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
-          <h1 className="text-3xl font-bold text-gray-900">Publisher Dashboard</h1>
+          <h1 className="text-3xl font-bold text-gray-900">Dashboard</h1>
           <p className="mt-2 text-sm text-gray-600">Manage your Telegram groups and posts</p>
         </div>
       </div>
 
       <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
         {/* Verification Status */}
-        {!publisher.isVerified && (
+        {!user.isVerified && (
           <div className="mb-6 rounded-lg border border-amber-200 bg-amber-50 p-4">
             <h3 className="text-sm font-semibold text-amber-800">Complete Verification</h3>
             <div className="mt-2 text-sm text-amber-700">
-              <p>✓ Telegram: {publisher.telegramVerified ? "Verified" : "Not Verified"}</p>
-              <p>✓ Email: {publisher.emailVerified ? "Verified" : "Not Verified"}</p>
-              {!publisher.emailVerified && (
+              <p>✓ Telegram: {user.telegramVerified ? "Verified" : "Not Verified"}</p>
+              <p>✓ Email: {user.email ? "Verified" : "Not Verified"}</p>
+              {!user.email && (
                 <Link href="/dashboard/verify-email" className="mt-2 inline-block text-blue-600 hover:text-blue-700">
                   Verify Email →
                 </Link>
@@ -101,23 +103,37 @@ export default function PublisherDashboard() {
           </div>
         )}
 
+        {/* Subscription Status */}
+        {user.subscriptionTier === "FREE" && (
+          <div className="mb-6 rounded-lg border border-blue-200 bg-blue-50 p-4">
+            <h3 className="text-sm font-semibold text-blue-800">Upgrade Your Subscription</h3>
+            <p className="mt-1 text-sm text-blue-700">
+              You're on the free tier with {user.freePostsUsed || 0}/{user.freePostsLimit || 3} free posts used. 
+              Subscribe to unlock unlimited group management and posting features.
+            </p>
+            <Link href="/subscriptions" className="mt-2 inline-block text-blue-600 hover:text-blue-700 font-semibold">
+              View Subscription Plans →
+            </Link>
+          </div>
+        )}
+
         {/* Stats */}
         <div className="mb-6 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
           <div className="overflow-hidden rounded-lg bg-white px-4 py-5 shadow sm:p-6">
             <dt className="truncate text-sm font-medium text-gray-500">Credits</dt>
-            <dd className="mt-1 text-3xl font-semibold text-gray-900">{publisher.user.credits}</dd>
+            <dd className="mt-1 text-3xl font-semibold text-gray-900">{user.credits}</dd>
           </div>
           <div className="overflow-hidden rounded-lg bg-white px-4 py-5 shadow sm:p-6">
             <dt className="truncate text-sm font-medium text-gray-500">Groups</dt>
-            <dd className="mt-1 text-3xl font-semibold text-gray-900">{publisher._count.groups}</dd>
+            <dd className="mt-1 text-3xl font-semibold text-gray-900">{user._count.groups}</dd>
           </div>
           <div className="overflow-hidden rounded-lg bg-white px-4 py-5 shadow sm:p-6">
             <dt className="truncate text-sm font-medium text-gray-500">Total Earnings</dt>
-            <dd className="mt-1 text-3xl font-semibold text-gray-900">{publisher.totalEarnings}</dd>
+            <dd className="mt-1 text-3xl font-semibold text-gray-900">{user.totalEarnings}</dd>
           </div>
           <div className="overflow-hidden rounded-lg bg-white px-4 py-5 shadow sm:p-6">
-            <dt className="truncate text-sm font-medium text-gray-500">Managed Users</dt>
-            <dd className="mt-1 text-3xl font-semibold text-gray-900">{publisher._count.managedUsers}</dd>
+            <dt className="truncate text-sm font-medium text-gray-500">Posts</dt>
+            <dd className="mt-1 text-3xl font-semibold text-gray-900">{user._count.ownerPosts}</dd>
           </div>
         </div>
 
@@ -153,11 +169,11 @@ export default function PublisherDashboard() {
         <div className="bg-white shadow sm:rounded-lg">
           <div className="px-4 py-5 sm:p-6">
             <h3 className="text-lg font-medium text-gray-900">Your Groups</h3>
-            {publisher.groups.length === 0 ? (
-              <p className="mt-4 text-sm text-gray-500">No groups yet. Add your first group to get started.</p>
+            {user.groups.length === 0 ? (
+              <p className="mt-4 text-sm text-gray-500">No groups yet. Subscribe to add your first group and get started.</p>
             ) : (
               <div className="mt-4 space-y-3">
-                {publisher.groups.map((group) => (
+                {user.groups.map((group) => (
                   <div
                     key={group.id}
                     className="flex items-center justify-between rounded-lg border border-gray-200 p-4"

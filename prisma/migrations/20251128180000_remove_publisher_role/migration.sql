@@ -26,6 +26,9 @@ BEGIN
         -- Create new enum
         CREATE TYPE "UserRole_new" AS ENUM ('USER', 'ADMIN');
         
+        -- Drop default constraint first
+        ALTER TABLE "User" ALTER COLUMN "role" DROP DEFAULT;
+        
         -- Update User table
         ALTER TABLE "User" ALTER COLUMN "role" TYPE "UserRole_new" 
         USING (
@@ -34,6 +37,9 @@ BEGIN
                 ELSE "role"::text::"UserRole_new"
             END
         );
+        
+        -- Set new default
+        ALTER TABLE "User" ALTER COLUMN "role" SET DEFAULT 'USER'::"UserRole_new";
         
         -- Drop old enum
         DROP TYPE "UserRole";

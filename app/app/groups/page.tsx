@@ -92,7 +92,7 @@ export default function BrowseGroupsPage() {
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-gray-900">Browse Groups</h1>
           <p className="mt-2 text-sm text-gray-600">
-            Find groups to post your ads. Request credits from publishers to post in their groups.
+            Find groups to post your ads. Request credits from group owners to post in their groups.
           </p>
         </div>
 

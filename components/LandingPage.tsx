@@ -99,18 +99,24 @@ export default function LandingPage() {
               <br />
               <span className="text-blue-600">Telegram Groups</span>
             </h1>
-            <p className="text-xl text-gray-600 mb-10 max-w-3xl mx-auto">
+            <p className="text-xl text-gray-600 mb-6 max-w-3xl mx-auto">
               Schedule posts, manage advertisements, and earn revenue from your Telegram communities
               with our powerful, easy-to-use platform.
             </p>
+            <div className="mb-10 rounded-lg border border-blue-200 bg-blue-50 px-6 py-4 max-w-2xl mx-auto">
+              <p className="text-sm text-blue-900">
+                <strong>💡 New:</strong> All users can add groups and post ads! Subscribe to unlock group management features. 
+                Get 3 free scheduled posts when you sign up, then choose a subscription plan to continue.
+              </p>
+            </div>
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
               {!session ? (
                 <>
                   <Link
-                    href="/auth/publisher/signup"
+                    href="/auth/signin"
                     className="px-8 py-4 bg-blue-600 text-white rounded-lg text-lg font-semibold hover:bg-blue-700 transition-colors shadow-lg"
                   >
-                    Start Earning Today
+                    Get Started Free
                   </Link>
                   <Link
                     href="/auth/signin"
@@ -319,7 +325,7 @@ export default function LandingPage() {
           <div className="text-center mb-16">
             <h2 className="text-4xl font-bold text-gray-900 mb-4">How It Works</h2>
             <p className="text-xl text-gray-600 max-w-2xl mx-auto">
-              Get started in minutes and start monetizing your Telegram groups today.
+              Get started in minutes! Sign up for free and get 3 scheduled posts. Subscribe to unlock unlimited group management and posting features.
             </p>
           </div>
 
@@ -328,9 +334,9 @@ export default function LandingPage() {
               <div className="w-16 h-16 bg-blue-600 text-white rounded-xl flex items-center justify-center text-2xl font-bold mx-auto mb-6 shadow-lg">
                 1
               </div>
-              <h3 className="text-2xl font-semibold text-gray-900 mb-3">Sign Up</h3>
+              <h3 className="text-2xl font-semibold text-gray-900 mb-3">Sign Up Free</h3>
               <p className="text-gray-600">
-                Create your publisher account and verify your Telegram account and email address.
+                Create your account and verify your Telegram account. Get 3 free scheduled posts to get started!
               </p>
             </div>
 
@@ -338,10 +344,9 @@ export default function LandingPage() {
               <div className="w-16 h-16 bg-blue-600 text-white rounded-xl flex items-center justify-center text-2xl font-bold mx-auto mb-6 shadow-lg">
                 2
               </div>
-              <h3 className="text-2xl font-semibold text-gray-900 mb-3">Add Groups</h3>
+              <h3 className="text-2xl font-semibold text-gray-900 mb-3">Subscribe & Add Groups</h3>
               <p className="text-gray-600">
-                Connect your Telegram groups and verify ownership through our secure bot
-                verification system.
+                Subscribe to unlock group management. Connect your Telegram groups and verify ownership through our secure bot verification system.
               </p>
             </div>
 
@@ -364,7 +369,7 @@ export default function LandingPage() {
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
           <h2 className="text-4xl font-bold text-white mb-6">Ready to Get Started?</h2>
           <p className="text-xl text-blue-100 mb-10 max-w-2xl mx-auto">
-            Join thousands of publishers who are already monetizing their Telegram groups.
+            Join thousands of users who are already managing and monetizing their Telegram groups.
           </p>
           {!session ? (
             <Link

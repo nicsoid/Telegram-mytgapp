@@ -171,14 +171,14 @@ export default function AppPage() {
             </svg>
           </Link>
           <Link
-            href="/auth/publisher/signup"
+            href="/dashboard"
             className="flex items-center justify-between rounded-xl border border-purple-200 bg-gradient-to-r from-purple-50 to-indigo-50 p-6 shadow-sm transition-all hover:border-purple-300 hover:shadow-md"
           >
             <div className="flex items-center space-x-4">
               <div className="text-3xl">🚀</div>
               <div>
-                <div className="font-semibold text-purple-900">Become a Publisher</div>
-                <div className="mt-1 text-sm text-purple-600">Add groups and manage ads</div>
+                <div className="font-semibold text-purple-900">Manage Groups</div>
+                <div className="mt-1 text-sm text-purple-600">Add groups and post ads (subscription required)</div>
               </div>
             </div>
             <svg className="h-5 w-5 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">

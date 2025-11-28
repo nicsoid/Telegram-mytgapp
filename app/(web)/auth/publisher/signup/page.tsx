@@ -38,10 +38,10 @@ function PublisherSignupForm() {
       const res = await fetch("/api/publishers/me", { credentials: "include" })
       if (res.ok) {
         const data = await res.json()
-        if (data.publisher) {
-          setTelegramVerified(data.publisher.telegramVerified)
-          setEmailVerified(data.publisher.emailVerified)
-          if (data.publisher.isVerified) {
+        if (data.user) {
+          setTelegramVerified(data.user.telegramVerified || false)
+          setEmailVerified(data.user.emailVerified ? true : false)
+          if (data.user.isVerified) {
             router.push("/dashboard")
           }
         }
@@ -135,9 +135,9 @@ function PublisherSignupForm() {
     <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 px-4">
       <div className="w-full max-w-md space-y-8 rounded-2xl bg-white p-8 shadow-xl">
         <div className="text-center">
-          <h1 className="text-3xl font-bold text-gray-900">Sign up as Publisher</h1>
+          <h1 className="text-3xl font-bold text-gray-900">Add Your Groups</h1>
           <p className="mt-2 text-sm text-gray-600">
-            Verify your Telegram account and email to get started
+            Verify your Telegram account and email to start adding groups. You'll get 3 free scheduled posts, then subscribe to continue.
           </p>
         </div>
 
