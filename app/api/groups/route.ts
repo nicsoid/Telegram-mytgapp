@@ -5,7 +5,7 @@ import { z } from "zod"
 import crypto from "crypto"
 
 const createGroupSchema = z.object({
-  telegramChatId: z.string().min(1),
+  telegramChatId: z.string().optional(), // Optional - will be set during verification
   name: z.string().min(1).max(200),
   username: z.string().optional(),
   description: z.string().optional(),
@@ -40,16 +40,35 @@ export async function POST(request: NextRequest) {
   const body = await request.json()
   const data = createGroupSchema.parse(body)
 
-  // Check if group already exists
-  const existing = await prisma.telegramGroup.findUnique({
-    where: { telegramChatId: data.telegramChatId },
-  })
+  // If chat ID is provided, check if group already exists
+  if (data.telegramChatId) {
+    const existing = await prisma.telegramGroup.findFirst({
+      where: { telegramChatId: data.telegramChatId },
+    })
 
-  if (existing) {
-    return NextResponse.json(
-      { error: "Group already exists in the system" },
-      { status: 400 }
-    )
+    if (existing) {
+      return NextResponse.json(
+        { error: "Group already exists in the system" },
+        { status: 400 }
+      )
+    }
+  }
+
+  // Check if group with same username already exists (if username provided)
+  if (data.username) {
+    const existingByUsername = await prisma.telegramGroup.findFirst({
+      where: {
+        username: data.username,
+        publisherId: guard.publisher.id,
+      },
+    })
+
+    if (existingByUsername) {
+      return NextResponse.json(
+        { error: "A group with this username already exists" },
+        { status: 400 }
+      )
+    }
   }
 
   // Generate verification code
@@ -58,7 +77,7 @@ export async function POST(request: NextRequest) {
   const group = await prisma.telegramGroup.create({
     data: {
       publisherId: guard.publisher.id,
-      telegramChatId: data.telegramChatId,
+      telegramChatId: data.telegramChatId || null, // Will be set during verification
       name: data.name,
       username: data.username || null,
       description: data.description || null,
@@ -73,7 +92,7 @@ export async function POST(request: NextRequest) {
     success: true,
     group,
     verificationCode,
-    message: `Add the bot to your group as admin and send /verify ${verificationCode} in the group`,
+    message: `Group added! Add the bot to your group as admin, then send /verify ${verificationCode} in the group. The chat ID will be automatically detected during verification.`,
   })
 }
 

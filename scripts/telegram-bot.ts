@@ -21,11 +21,15 @@ bot.command("verify", async (ctx) => {
       return
     }
 
-    // Find group by chat ID and verification code
+    // Find group by verification code (chat ID may not be set yet)
     const group = await prisma.telegramGroup.findFirst({
       where: {
-        telegramChatId: chatId,
         verificationCode: code.toUpperCase(),
+        publisher: {
+          user: {
+            telegramId: userId, // Ensure it's the correct publisher
+          },
+        },
       },
       include: {
         publisher: {
@@ -61,10 +65,26 @@ bot.command("verify", async (ctx) => {
       return
     }
 
-    // Update group as verified
+    // Check if another group already uses this chat ID
+    if (group.telegramChatId && group.telegramChatId !== chatId) {
+      const existingGroup = await prisma.telegramGroup.findUnique({
+        where: { telegramChatId: chatId },
+      })
+
+      if (existingGroup && existingGroup.id !== group.id) {
+        await ctx.reply(
+          "❌ This chat ID is already registered to another group.\n\n" +
+          "Please use a different group or contact support."
+        )
+        return
+      }
+    }
+
+    // Update group as verified and set chat ID if not already set
     await prisma.telegramGroup.update({
       where: { id: group.id },
       data: {
+        telegramChatId: chatId, // Set or update chat ID
         isVerified: true,
         verifiedByBot: true,
         verifiedAt: new Date(),

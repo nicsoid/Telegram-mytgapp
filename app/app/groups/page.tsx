@@ -20,7 +20,6 @@ type TelegramGroup = {
 
 const initialForm = {
   name: "",
-  telegramChatId: "",
   username: "",
   description: "",
   pricePerPost: 10,
@@ -172,7 +171,6 @@ export default function GroupsPage() {
         headers: { "Content-Type": "application/json" },
         credentials: "include",
         body: JSON.stringify({
-          telegramChatId: form.telegramChatId.trim(),
           name: form.name.trim(),
           username: form.username.trim() || undefined,
           description: form.description.trim() || undefined,
@@ -370,11 +368,25 @@ export default function GroupsPage() {
                           <span>Free every {group.freePostIntervalDays} days</span>
                         </div>
                       </div>
+                      {group.isVerified && group.telegramChatId && (
+                        <div className="mt-4 rounded-lg bg-green-50 border border-green-200 p-3">
+                          <p className="text-xs font-medium text-green-800">Chat ID (auto-detected)</p>
+                          <p className="mt-1 text-xs text-green-700 font-mono break-all">
+                            {group.telegramChatId}
+                          </p>
+                        </div>
+                      )}
                       {!group.isVerified && group.verificationCode && (
                         <div className="mt-4 rounded-lg bg-yellow-50 border border-yellow-200 p-3">
                           <p className="text-xs font-medium text-yellow-800">Verification Required</p>
-                          <p className="mt-1 text-xs text-yellow-700 font-mono">
+                          <p className="mt-1 text-xs text-yellow-700">
+                            Add the bot to your group as admin, then send:
+                          </p>
+                          <p className="mt-1 text-xs text-yellow-800 font-mono bg-yellow-100 px-2 py-1 rounded">
                             /verify {group.verificationCode}
+                          </p>
+                          <p className="mt-2 text-xs text-yellow-700">
+                            The chat ID will be automatically detected during verification.
                           </p>
                         </div>
                       )}
@@ -403,7 +415,7 @@ export default function GroupsPage() {
             <h2 className="text-xl font-bold text-gray-900">Add New Group</h2>
             <p className="mt-1 text-sm text-gray-500">
               {canManageGroups
-                ? "Add the bot to your group and verify ownership"
+                ? "Add the bot to your group as admin, then verify. Chat ID will be auto-detected."
                 : "Verify your Telegram account first"}
             </p>
           </div>
@@ -428,19 +440,25 @@ export default function GroupsPage() {
                   />
                 </div>
                 <div>
-                  <label className="text-sm font-medium text-gray-700">Telegram Chat ID</label>
+                  <label className="block text-sm font-semibold text-gray-700 mb-1">
+                    Username <span className="text-gray-500 font-normal">(optional)</span>
+                  </label>
                   <input
                     type="text"
-                    value={form.telegramChatId}
-                    onChange={(e) => setForm((prev) => ({ ...prev, telegramChatId: e.target.value }))}
-                    className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
-                    placeholder="-1001234567890"
+                    value={form.username}
+                    onChange={(e) => setForm((prev) => ({ ...prev, username: e.target.value }))}
+                    className="w-full rounded-lg border border-gray-300 px-4 py-2.5 text-sm transition-all focus:border-blue-500 focus:ring-2 focus:ring-blue-200 disabled:bg-gray-50 disabled:cursor-not-allowed"
+                    placeholder="@channel_username (for public groups)"
                     disabled={!canManageGroups}
-                    required
                   />
+                  <p className="mt-1 text-xs text-gray-500">
+                    Leave empty for private groups. Chat ID will be automatically detected when you verify the group.
+                  </p>
                 </div>
                 <div>
-                  <label className="text-sm font-medium text-gray-700">Username (optional)</label>
+                  <label className="block text-sm font-semibold text-gray-700 mb-1">
+                    Description <span className="text-gray-500 font-normal">(optional)</span>
+                  </label>
                   <input
                     type="text"
                     value={form.username}
@@ -455,26 +473,27 @@ export default function GroupsPage() {
                   <textarea
                     value={form.description}
                     onChange={(e) => setForm((prev) => ({ ...prev, description: e.target.value }))}
-                    className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
+                    className="w-full rounded-lg border border-gray-300 px-4 py-2.5 text-sm transition-all focus:border-blue-500 focus:ring-2 focus:ring-blue-200 disabled:bg-gray-50 disabled:cursor-not-allowed resize-none"
                     rows={3}
+                    placeholder="Brief description of your group..."
                     disabled={!canManageGroups}
                   />
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="text-sm font-medium text-gray-700">Price per Post (€)</label>
+                    <label className="block text-sm font-semibold text-gray-700 mb-1">Price per Post (€)</label>
                     <input
                       type="number"
                       min={0}
                       value={form.pricePerPost}
                       onChange={(e) => setForm((prev) => ({ ...prev, pricePerPost: Number(e.target.value) }))}
-                      className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
+                      className="w-full rounded-lg border border-gray-300 px-4 py-2.5 text-sm transition-all focus:border-blue-500 focus:ring-2 focus:ring-blue-200 disabled:bg-gray-50 disabled:cursor-not-allowed"
                       disabled={!canManageGroups}
                       required
                     />
                   </div>
                   <div>
-                    <label className="text-sm font-medium text-gray-700">Free Post Interval (days)</label>
+                    <label className="block text-sm font-semibold text-gray-700 mb-1">Free Post Interval (days)</label>
                     <input
                       type="number"
                       min={1}
@@ -483,7 +502,7 @@ export default function GroupsPage() {
                       onChange={(e) =>
                         setForm((prev) => ({ ...prev, freePostIntervalDays: Number(e.target.value) }))
                       }
-                      className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
+                      className="w-full rounded-lg border border-gray-300 px-4 py-2.5 text-sm transition-all focus:border-blue-500 focus:ring-2 focus:ring-blue-200 disabled:bg-gray-50 disabled:cursor-not-allowed"
                       disabled={!canManageGroups}
                       required
                     />

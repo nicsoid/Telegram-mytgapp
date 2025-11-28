@@ -80,6 +80,12 @@ export async function GET(request: NextRequest) {
         const chatId = post.group.telegramChatId
         const mediaUrls = post.mediaUrls || []
 
+        // Skip posts for groups without chat ID (not verified yet)
+        if (!chatId) {
+          results.errors.push(`Post ${post.id}: Group ${post.group.name} is not verified (no chat ID)`)
+          continue
+        }
+
         if (!mediaUrls.length) {
           await sendTelegramMessage(chatId, captionHtml, {
             parseMode: "HTML",

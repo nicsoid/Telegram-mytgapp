@@ -148,7 +148,7 @@ model Publisher {
 model TelegramGroup {
   id                  String   @id @default(cuid())
   publisherId         String
-  telegramChatId      String   @unique // Telegram group chat ID
+  telegramChatId      String?  @unique // Telegram group chat ID (set during verification)
   name                String
   username            String?  // If public group
   description         String?  @db.Text
