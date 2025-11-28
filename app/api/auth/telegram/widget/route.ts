@@ -157,7 +157,10 @@ export async function GET(request: NextRequest) {
     // Store a temporary auth token (we'll use a simple approach with user ID + timestamp hash)
     const authToken = Buffer.from(`${user.id}:${Date.now()}`).toString('base64')
     
-    console.log('[widget] Redirecting to signin with token, user:', user.id)
+    console.log('[widget] Redirecting to signin with token, user:', user.id, {
+      baseUrl,
+      baseDomain,
+    })
     
     // Store in a cookie or redirect with token
     const response = NextResponse.redirect(
