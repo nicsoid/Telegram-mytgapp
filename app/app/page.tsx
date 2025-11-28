@@ -162,8 +162,8 @@ export default function AppPage() {
             <div className="flex items-center space-x-4">
               <div className="text-3xl">👥</div>
               <div>
-                <div className="font-semibold text-gray-900">Browse Groups</div>
-                <div className="mt-1 text-sm text-gray-500">Find groups to post your ads</div>
+                <div className="font-semibold text-gray-900">My Groups</div>
+                <div className="mt-1 text-sm text-gray-500">View your groups and groups you've posted in</div>
               </div>
             </div>
             <svg className="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -171,14 +171,14 @@ export default function AppPage() {
             </svg>
           </Link>
           <Link
-            href="/dashboard"
+            href="/dashboard/groups"
             className="flex items-center justify-between rounded-xl border border-purple-200 bg-gradient-to-r from-purple-50 to-indigo-50 p-6 shadow-sm transition-all hover:border-purple-300 hover:shadow-md"
           >
             <div className="flex items-center space-x-4">
               <div className="text-3xl">🚀</div>
               <div>
                 <div className="font-semibold text-purple-900">Manage Groups</div>
-                <div className="mt-1 text-sm text-purple-600">Add groups and post ads (subscription required)</div>
+                <div className="mt-1 text-sm text-purple-600">Add and manage your groups (subscription required for posting more than 3 posts)</div>
               </div>
             </div>
             <svg className="h-5 w-5 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">

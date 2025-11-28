@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from "next/server"
-import { requireActiveSubscription } from "@/lib/admin"
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { z } from "zod"
@@ -16,11 +15,13 @@ const createGroupSchema = z.object({
 })
 
 export async function GET(request: NextRequest) {
-  const guard = await requireActiveSubscription()
-  if ("response" in guard) return guard.response
+  const session = await auth()
+  if (!session?.user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  }
 
   const groups = await prisma.telegramGroup.findMany({
-    where: { userId: guard.user.id },
+    where: { userId: session.user.id },
     orderBy: { createdAt: "desc" },
   })
 
@@ -28,20 +29,34 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  const guard = await requireActiveSubscription()
-  if ("response" in guard) {
-    return guard.response
+  const session = await auth()
+  if (!session?.user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  }
+
+  // Get user with Telegram verification status
+  const user = await prisma.user.findUnique({
+    where: { id: session.user.id },
+    select: {
+      id: true,
+      telegramVerifiedAt: true,
+      telegramVerified: true,
+    },
+  })
+
+  if (!user) {
+    return NextResponse.json({ error: "User not found" }, { status: 404 })
   }
 
   // Check if user has verified Telegram
-  if (!guard.user.telegramVerifiedAt && !guard.user.telegramVerified) {
+  if (!user.telegramVerifiedAt && !user.telegramVerified) {
     return NextResponse.json(
       { error: "Please verify your Telegram account before adding groups" },
       { status: 403 }
     )
   }
 
-  return handleGroupCreation(guard.user, request)
+  return handleGroupCreation(user, request)
 }
 
 async function handleGroupCreation(user: any, request: NextRequest) {

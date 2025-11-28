@@ -24,7 +24,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
   // Dashboard access is controlled by subscription check in the pages
   const navigation = [
     { name: "Overview", href: "/app", icon: "📊" },
-    { name: "Browse Groups", href: "/app/groups", icon: "👥" },
+    { name: "My Groups", href: "/app/groups", icon: "👥" },
     { name: "My Posts", href: "/app/posts", icon: "📝" },
     { name: "Dashboard", href: "/dashboard", icon: "⚙️" },
   ]

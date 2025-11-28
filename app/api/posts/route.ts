@@ -46,6 +46,9 @@ export async function GET(request: NextRequest) {
         select: {
           id: true,
           name: true,
+          username: true,
+          pricePerPost: true,
+          isVerified: true,
         },
       },
       advertiser: {
