@@ -14,7 +14,8 @@
     "bot:dev": "tsx scripts/telegram-bot.ts",
     "bot": "tsx scripts/telegram-bot.ts",
     "create-admin": "tsx scripts/create-admin.ts",
-    "fix-credit-requests": "tsx scripts/fix-credit-requests.ts"
+    "fix-credit-requests": "tsx scripts/fix-credit-requests.ts",
+    "check-db-state": "tsx scripts/check-db-state.ts"
   },
   "dependencies": {
     "@auth/prisma-adapter": "^2.11.1",
