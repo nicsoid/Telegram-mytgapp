@@ -28,6 +28,10 @@ export default function AppPage() {
     postsCount: 0,
     scheduledPostsCount: 0,
     sentPostsCount: 0,
+    totalRevenue: 0,
+    totalSpent: 0,
+    subscriptionTier: "FREE",
+    subscriptionStatus: "ACTIVE",
   })
   const [loading, setLoading] = useState(true)
   const [showCreditModal, setShowCreditModal] = useState(false)
