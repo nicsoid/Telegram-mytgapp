@@ -76,8 +76,8 @@ export default function AppPage() {
         sentPostsCount: posts.filter((p: any) => p.status === "SENT").length,
         totalRevenue,
         totalSpent,
-        subscriptionTier: session?.user?.subscriptionTier || "FREE",
-        subscriptionStatus: session?.user?.subscriptionStatus || "ACTIVE",
+        subscriptionTier: "FREE", // Will be fetched separately if needed
+        subscriptionStatus: "ACTIVE", // Will be fetched separately if needed
       })
     } catch (error) {
       console.error("Failed to load stats", error)
