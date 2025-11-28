@@ -127,9 +127,9 @@ export default function PublishersManager() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-gray-50">
       {/* Header */}
-      <div className="bg-white shadow">
+      <div className="sticky top-0 z-40 border-b border-gray-200 bg-white/80 backdrop-blur-lg shadow-sm">
         <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between">
             <div>
@@ -140,7 +140,7 @@ export default function PublishersManager() {
             </div>
             <Link
               href="/admin"
-              className="px-4 py-2 text-gray-700 hover:text-gray-900 transition-colors"
+              className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm transition-all hover:bg-gray-50"
             >
               ← Back to Dashboard
             </Link>
@@ -148,9 +148,9 @@ export default function PublishersManager() {
         </div>
       </div>
 
-      <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
+      <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
         {/* Filters */}
-        <div className="mb-6 bg-white p-6 rounded-lg shadow">
+        <div className="mb-6 rounded-2xl border border-gray-200 bg-white p-6 shadow-lg">
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             {/* Search */}
             <div className="md:col-span-2">
@@ -244,15 +244,21 @@ export default function PublishersManager() {
         </div>
 
         {/* Publishers Table */}
-        <div className="bg-white shadow sm:rounded-lg overflow-hidden">
-          <div className="px-4 py-5 sm:p-6">
+        <div className="rounded-2xl border border-gray-200 bg-white shadow-lg overflow-hidden">
+          <div className="px-6 py-5 border-b border-gray-200 bg-gradient-to-r from-purple-50 to-indigo-50">
+            <h2 className="text-lg font-bold text-gray-900">All Publishers</h2>
+            <p className="mt-1 text-sm text-gray-600">View and manage publisher accounts</p>
+          </div>
+          <div className="p-6">
             {loading ? (
-              <div className="text-center py-12">
-                <p className="text-gray-500">Loading publishers...</p>
+              <div className="flex items-center justify-center py-12">
+                <div className="text-gray-400">Loading publishers...</div>
               </div>
             ) : publishers.length === 0 ? (
               <div className="text-center py-12">
-                <p className="text-gray-500">No publishers found</p>
+                <div className="text-4xl mb-4">📊</div>
+                <p className="text-sm font-medium text-gray-900">No publishers found</p>
+                <p className="mt-1 text-xs text-gray-500">Try adjusting your filters</p>
               </div>
             ) : (
               <>
@@ -282,24 +288,31 @@ export default function PublishersManager() {
                     </thead>
                     <tbody className="bg-white divide-y divide-gray-200">
                       {publishers.map((publisher) => (
-                        <tr key={publisher.id} className="hover:bg-gray-50">
+                        <tr key={publisher.id} className="hover:bg-gray-50 transition-colors">
                           <td className="px-6 py-4 whitespace-nowrap">
-                            <div className="text-sm font-medium text-gray-900">
-                              {publisher.user.name || "N/A"}
-                            </div>
-                            <div className="text-sm text-gray-500">
-                              {publisher.user.email || publisher.user.telegramUsername || publisher.user.id}
-                            </div>
-                            {publisher.user.telegramUsername && (
-                              <div className="text-xs text-gray-400">
-                                @{publisher.user.telegramUsername}
+                            <div className="flex items-center space-x-3">
+                              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-gradient-to-br from-purple-500 to-indigo-500 text-white font-bold text-sm">
+                                {(publisher.user.name || publisher.user.email || "P")[0].toUpperCase()}
                               </div>
-                            )}
+                              <div>
+                                <div className="text-sm font-semibold text-gray-900">
+                                  {publisher.user.name || "N/A"}
+                                </div>
+                                <div className="text-sm text-gray-500">
+                                  {publisher.user.email || publisher.user.telegramUsername || publisher.user.id}
+                                </div>
+                                {publisher.user.telegramUsername && (
+                                  <div className="text-xs text-gray-400">
+                                    @{publisher.user.telegramUsername}
+                                  </div>
+                                )}
+                              </div>
+                            </div>
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap">
-                            <div className="space-y-1">
+                            <div className="space-y-2">
                               <span
-                                className={`inline-flex rounded-full px-2 py-1 text-xs font-semibold ${getTierBadgeColor(
+                                className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${getTierBadgeColor(
                                   publisher.subscriptionTier
                                 )}`}
                               >
@@ -307,7 +320,7 @@ export default function PublishersManager() {
                               </span>
                               <div>
                                 <span
-                                  className={`inline-flex rounded-full px-2 py-1 text-xs font-semibold ${getStatusBadgeColor(
+                                  className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${getStatusBadgeColor(
                                     publisher.subscriptionStatus
                                   )}`}
                                 >
@@ -370,7 +383,7 @@ export default function PublishersManager() {
                           <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                             <Link
                               href={`/admin/users?userId=${publisher.user.id}`}
-                              className="text-blue-600 hover:text-blue-900"
+                              className="rounded-lg bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-700 transition-all hover:bg-blue-100"
                             >
                               View Details
                             </Link>

@@ -171,8 +171,8 @@ export default function GroupsPage() {
         headers: { "Content-Type": "application/json" },
         credentials: "include",
         body: JSON.stringify({
-          name: form.name.trim(),
-          username: form.username.trim() || undefined,
+          name: form.name.trim() || undefined,
+          username: form.username.trim(),
           description: form.description.trim() || undefined,
           pricePerPost: Number(form.pricePerPost),
           freePostIntervalDays: Number(form.freePostIntervalDays),
@@ -428,31 +428,36 @@ export default function GroupsPage() {
 
           <form onSubmit={handleSubmit} className="space-y-4">
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1">Group Name</label>
+                  <label className="block text-sm font-semibold text-gray-700 mb-1">
+                    Group Name <span className="text-gray-500 font-normal">(optional)</span>
+                  </label>
                   <input
                     type="text"
                     value={form.name}
                     onChange={(e) => setForm((prev) => ({ ...prev, name: e.target.value }))}
                     className="w-full rounded-lg border border-gray-300 px-4 py-2.5 text-sm transition-all focus:border-blue-500 focus:ring-2 focus:ring-blue-200 disabled:bg-gray-50 disabled:cursor-not-allowed"
-                    placeholder="My Awesome Group"
+                    placeholder="Will be auto-filled from Telegram if available"
                     disabled={!canManageGroups}
-                    required
                   />
+                  <p className="mt-1 text-xs text-gray-500">
+                    Group name will be automatically fetched from Telegram if the bot can access the group.
+                  </p>
                 </div>
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-1">
-                    Username <span className="text-gray-500 font-normal">(optional)</span>
+                    Group Username or Link <span className="text-red-500">*</span>
                   </label>
                   <input
                     type="text"
                     value={form.username}
                     onChange={(e) => setForm((prev) => ({ ...prev, username: e.target.value }))}
                     className="w-full rounded-lg border border-gray-300 px-4 py-2.5 text-sm transition-all focus:border-blue-500 focus:ring-2 focus:ring-blue-200 disabled:bg-gray-50 disabled:cursor-not-allowed"
-                    placeholder="@channel_username (for public groups)"
+                    placeholder="@channel_username or https://t.me/channel_username"
                     disabled={!canManageGroups}
+                    required
                   />
                   <p className="mt-1 text-xs text-gray-500">
-                    Leave empty for private groups. Chat ID will be automatically detected when you verify the group.
+                    Enter the group username (e.g., @mygroup) or link (e.g., https://t.me/mygroup). The bot must be added as admin to the group.
                   </p>
                 </div>
                 <div>

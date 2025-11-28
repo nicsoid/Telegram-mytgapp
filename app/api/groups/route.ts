@@ -1,13 +1,15 @@
 import { NextRequest, NextResponse } from "next/server"
 import { requirePublisherSession } from "@/lib/admin"
+import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { z } from "zod"
 import crypto from "crypto"
+import { getTelegramChat } from "@/lib/telegram"
 
 const createGroupSchema = z.object({
   telegramChatId: z.string().optional(), // Optional - will be set during verification
-  name: z.string().min(1).max(200),
-  username: z.string().optional(),
+  name: z.string().min(1).max(200).optional(), // Optional - can be fetched from Telegram
+  username: z.string().min(1), // Required - username or link
   description: z.string().optional(),
   pricePerPost: z.number().int().min(0).default(1),
   freePostIntervalDays: z.number().int().min(1).max(365).default(7),
@@ -27,45 +29,106 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   const guard = await requirePublisherSession()
-  if ("response" in guard) return guard.response
+  if ("response" in guard) {
+    // If user is not a publisher, check if they're verified and can become a publisher
+    const session = await auth()
+    if (session?.user && session.user.role === "USER") {
+      // Check if user has verified Telegram
+      const user = await prisma.user.findUnique({
+        where: { id: session.user.id },
+        include: { publisher: true },
+      })
+      
+      if (!user?.telegramVerifiedAt) {
+        return NextResponse.json(
+          { error: "Please verify your Telegram account before adding groups" },
+          { status: 403 }
+        )
+      }
+      
+      // Create publisher profile if it doesn't exist
+      if (!user.publisher) {
+        await prisma.publisher.create({
+          data: {
+            userId: user.id,
+            telegramVerified: true,
+            isVerified: true, // Auto-verify if Telegram is verified
+          },
+        })
+      }
+      
+      // Retry getting publisher session
+      const retryGuard = await requirePublisherSession()
+      if ("response" in retryGuard) return retryGuard.response
+      return handleGroupCreation(retryGuard.publisher, request)
+    }
+    return guard.response
+  }
 
   // Check if publisher is verified
-  if (!guard.publisher.isVerified) {
+  if (!guard.publisher.isVerified && !guard.publisher.telegramVerified) {
     return NextResponse.json(
-      { error: "Please verify both your Telegram account and email before adding groups" },
+      { error: "Please verify your Telegram account before adding groups" },
       { status: 403 }
     )
   }
 
+  return handleGroupCreation(guard.publisher, request)
+}
+
+async function handleGroupCreation(publisher: any, request: NextRequest) {
+
   const body = await request.json()
   const data = createGroupSchema.parse(body)
 
-  // If chat ID is provided, check if group already exists
-  if (data.telegramChatId) {
-    const existing = await prisma.telegramGroup.findFirst({
-      where: { telegramChatId: data.telegramChatId },
-    })
+  // Parse username from link if provided (t.me/username or @username)
+  let cleanUsername = data.username
+    .replace(/^@/, '')
+    .replace(/^https?:\/\/(www\.)?t\.me\//, '')
+    .replace(/^t\.me\//, '')
+    .trim()
 
-    if (existing) {
-      return NextResponse.json(
-        { error: "Group already exists in the system" },
-        { status: 400 }
-      )
-    }
+  if (!cleanUsername) {
+    return NextResponse.json(
+      { error: "Invalid username or link format" },
+      { status: 400 }
+    )
   }
 
-  // Check if group with same username already exists (if username provided)
-  if (data.username) {
-    const existingByUsername = await prisma.telegramGroup.findFirst({
-      where: {
-        username: data.username,
-        publisherId: guard.publisher.id,
-      },
+  // Try to get chat info from Telegram API
+  let chatInfo: { chatId: string; title: string; username: string; type: string; description?: string } | null = null
+  try {
+    chatInfo = await getTelegramChat(cleanUsername)
+    cleanUsername = chatInfo.username
+  } catch (error: any) {
+    // If we can't get chat info, that's okay - user might need to add bot first
+    console.warn("Could not fetch chat info from Telegram:", error.message)
+  }
+
+  // Check if group with same username already exists
+  const existingByUsername = await prisma.telegramGroup.findFirst({
+    where: {
+      username: cleanUsername,
+      publisherId: publisher.id,
+    },
+  })
+
+  if (existingByUsername) {
+    return NextResponse.json(
+      { error: "A group with this username already exists" },
+      { status: 400 }
+    )
+  }
+
+  // If chat ID was fetched, check if it exists
+  if (chatInfo?.chatId) {
+    const existingByChatId = await prisma.telegramGroup.findFirst({
+      where: { telegramChatId: chatInfo.chatId },
     })
 
-    if (existingByUsername) {
+    if (existingByChatId) {
       return NextResponse.json(
-        { error: "A group with this username already exists" },
+        { error: "This group is already registered in the system" },
         { status: 400 }
       )
     }
@@ -74,13 +137,16 @@ export async function POST(request: NextRequest) {
   // Generate verification code
   const verificationCode = crypto.randomBytes(8).toString("hex").toUpperCase()
 
+  // Use fetched name from Telegram or provided name
+  const groupName = data.name || chatInfo?.title || cleanUsername
+
   const group = await prisma.telegramGroup.create({
     data: {
-      publisherId: guard.publisher.id,
-      telegramChatId: data.telegramChatId || null, // Will be set during verification
-      name: data.name,
-      username: data.username || null,
-      description: data.description || null,
+      publisherId: publisher.id,
+      telegramChatId: chatInfo?.chatId || null, // Set if available, otherwise will be set during verification
+      name: groupName,
+      username: cleanUsername,
+      description: data.description || chatInfo?.description || null,
       pricePerPost: data.pricePerPost,
       freePostIntervalDays: data.freePostIntervalDays,
       verificationCode,
@@ -88,11 +154,13 @@ export async function POST(request: NextRequest) {
     },
   })
 
+  const botUsername = process.env.NEXT_PUBLIC_TELEGRAM_BOT_USERNAME || process.env.TELEGRAM_BOT_USERNAME || "igramposter_bot"
+  
   return NextResponse.json({
     success: true,
     group,
     verificationCode,
-    message: `Group added! Add the bot to your group as admin, then send /verify ${verificationCode} in the group. The chat ID will be automatically detected during verification.`,
+    message: `Group added! Add the bot (@${botUsername}) to your group as admin, then send /verify ${verificationCode} in the group. The chat ID will be automatically detected during verification.`,
   })
 }
 

@@ -340,6 +340,53 @@ type ChatMemberResponse = {
   }
 }
 
+/**
+ * Get Telegram chat information by username
+ */
+export async function getTelegramChat(username: string) {
+  try {
+    // Remove @ and t.me/ prefixes if present
+    const cleanUsername = username
+      .replace(/^@/, '')
+      .replace(/^https?:\/\/(www\.)?t\.me\//, '')
+      .replace(/^t\.me\//, '')
+      .trim()
+
+    if (!cleanUsername) {
+      throw new Error('Invalid username format')
+    }
+
+    const result = await callTelegramMethod<{
+      ok: boolean
+      result?: {
+        id: number
+        title?: string
+        username?: string
+        type: string
+        description?: string
+      }
+      error_code?: number
+      description?: string
+    }>('getChat', {
+      chat_id: `@${cleanUsername}`,
+    })
+
+    if (!result.ok || !result.result) {
+      throw new Error(result.description || 'Failed to get chat information')
+    }
+
+    return {
+      chatId: result.result.id.toString(),
+      title: result.result.title || cleanUsername,
+      username: result.result.username || cleanUsername,
+      type: result.result.type,
+      description: result.result.description,
+    }
+  } catch (error: any) {
+    throw new Error(`Failed to get Telegram chat: ${error.message}`)
+  }
+}
+
 export async function getChatMember(chatId: string, userId: string) {
   return callTelegramMethod<ChatMemberResponse>('getChatMember', {
     chat_id: chatId,
