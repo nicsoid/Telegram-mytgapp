@@ -1,8 +1,11 @@
 "use client"
 
 import { useSession } from "next-auth/react"
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useState, useRef } from "react"
 import { format } from "date-fns"
+import FormattingToolbar from "@/components/editor/FormattingToolbar"
+import { FormatType, applyFormatting } from "@/lib/richText"
+import RichText from "@/components/RichText"
 
 type TelegramGroup = {
   id: string
@@ -28,6 +31,11 @@ const initialPost = {
   mediaUrls: [] as string[],
   scheduledAt: "",
   isPaidAd: false,
+  isRecurring: false,
+  recurrencePattern: "daily" as "daily" | "weekly" | "monthly" | "custom",
+  recurrenceInterval: 1,
+  recurrenceEndDate: "",
+  recurrenceCount: undefined as number | undefined,
 }
 
 export default function AppPostsPage() {
@@ -42,6 +50,9 @@ export default function AppPostsPage() {
   const [uploadError, setUploadError] = useState<string | null>(null)
   const [showUrlInput, setShowUrlInput] = useState(false)
   const [urlInput, setUrlInput] = useState("")
+  const contentRef = useRef<HTMLTextAreaElement | null>(null)
+  const [editingPost, setEditingPost] = useState<TelegramPost | null>(null)
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState<string | null>(null)
 
   const verifiedGroups = useMemo(() => groups.filter((g) => g.isVerified), [groups])
 
@@ -169,8 +180,11 @@ export default function AppPostsPage() {
     setSubmitting(true)
     setMessage(null)
     try {
-      const res = await fetch("/api/posts", {
-        method: "POST",
+      const url = editingPost ? `/api/posts/${editingPost.id}` : "/api/posts"
+      const method = editingPost ? "PATCH" : "POST"
+      
+      const res = await fetch(url, {
+        method,
         headers: { "Content-Type": "application/json" },
         credentials: "include",
         body: JSON.stringify({
@@ -179,21 +193,49 @@ export default function AppPostsPage() {
           mediaUrls: form.mediaUrls.filter(Boolean),
           scheduledAt: new Date(form.scheduledAt).toISOString(),
           isPaidAd: form.isPaidAd,
+          ...(form.isRecurring && {
+            isRecurring: true,
+            recurrencePattern: form.recurrencePattern,
+            recurrenceInterval: form.recurrencePattern === "custom" ? form.recurrenceInterval : undefined,
+            recurrenceEndDate: form.recurrenceEndDate ? new Date(form.recurrenceEndDate).toISOString() : null,
+            recurrenceCount: form.recurrenceCount || undefined,
+          }),
         }),
       })
       const data = await res.json()
       if (res.ok) {
         setForm((prev) => ({ ...initialPost, groupId: prev.groupId }))
-        setMessage("✅ Post scheduled successfully!")
+        setEditingPost(null)
+        setMessage(editingPost ? "✅ Post updated successfully!" : "✅ Post scheduled successfully!")
         setTimeout(() => setMessage(null), 5000)
         loadPosts()
       } else {
-        setMessage(data.error || "Failed to schedule post")
+        setMessage(data.error || (editingPost ? "Failed to update post" : "Failed to schedule post"))
       }
     } catch (error) {
-      setMessage("An error occurred while scheduling the post.")
+      setMessage("An error occurred while " + (editingPost ? "updating" : "scheduling") + " the post.")
     } finally {
       setSubmitting(false)
+    }
+  }
+
+  const handleDeletePost = async (postId: string) => {
+    try {
+      const res = await fetch(`/api/posts/${postId}`, {
+        method: "DELETE",
+        credentials: "include",
+      })
+      if (res.ok) {
+        setMessage("✅ Post deleted successfully!")
+        setTimeout(() => setMessage(null), 5000)
+        loadPosts()
+        setShowDeleteConfirm(null)
+      } else {
+        const data = await res.json()
+        setMessage(data.error || "Failed to delete post")
+      }
+    } catch (error) {
+      setMessage("An error occurred while deleting the post.")
     }
   }
 
@@ -289,7 +331,7 @@ export default function AppPostsPage() {
                         </div>
                       </div>
                       <p className="text-sm text-gray-700 whitespace-pre-line line-clamp-3">
-                        {post.content}
+                        <RichText text={post.content} className="text-sm" />
                       </p>
                       {post.mediaUrls.length > 0 && (
                         <div className="mt-3 flex items-center space-x-2 text-xs text-gray-500">
@@ -303,7 +345,7 @@ export default function AppPostsPage() {
                         </div>
                       )}
                     </div>
-                    <div className="ml-4">
+                    <div className="ml-4 flex flex-col items-end gap-2">
                       <span
                         className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold ${
                           post.status === "SENT"
@@ -316,6 +358,58 @@ export default function AppPostsPage() {
                         {post.status === "SENT" && "✓ "}
                         {post.status}
                       </span>
+                      {post.status !== "SENT" && (
+                        <div className="flex gap-1">
+                          <button
+                            onClick={() => {
+                              // Duplicate post
+                              setForm({
+                                ...initialPost,
+                                groupId: post.group.id,
+                                content: post.content,
+                                mediaUrls: post.mediaUrls,
+                                scheduledAt: "",
+                              })
+                              // Scroll to form
+                              document.getElementById("post-form")?.scrollIntoView({ behavior: "smooth" })
+                            }}
+                            className="rounded px-2 py-1 text-xs text-blue-600 hover:bg-blue-50"
+                            title="Duplicate"
+                          >
+                            📋
+                          </button>
+                          <button
+                            onClick={() => {
+                              // Edit post
+                              setEditingPost(post)
+                              setForm({
+                                groupId: post.group.id,
+                                content: post.content,
+                                mediaUrls: post.mediaUrls,
+                                scheduledAt: new Date(post.scheduledAt).toISOString().slice(0, 16),
+                                isPaidAd: post.isPaidAd,
+                                isRecurring: false,
+                                recurrencePattern: "daily",
+                                recurrenceInterval: 1,
+                                recurrenceEndDate: "",
+                                recurrenceCount: undefined,
+                              })
+                              document.getElementById("post-form")?.scrollIntoView({ behavior: "smooth" })
+                            }}
+                            className="rounded px-2 py-1 text-xs text-green-600 hover:bg-green-50"
+                            title="Edit"
+                          >
+                            ✏️
+                          </button>
+                          <button
+                            onClick={() => setShowDeleteConfirm(post.id)}
+                            className="rounded px-2 py-1 text-xs text-red-600 hover:bg-red-50"
+                            title="Delete"
+                          >
+                            🗑️
+                          </button>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -325,10 +419,25 @@ export default function AppPostsPage() {
         </section>
 
         {/* Schedule Post Form */}
-        <section className="rounded-2xl border border-gray-200 bg-white p-6 shadow-lg">
+        <section id="post-form" className="rounded-2xl border border-gray-200 bg-white p-6 shadow-lg">
           <div className="mb-6">
-            <h2 className="text-xl font-bold text-gray-900">Schedule New Post</h2>
-            <p className="mt-1 text-sm text-gray-500">Create content for your verified groups</p>
+            <h2 className="text-xl font-bold text-gray-900">
+              {editingPost ? "Edit Post" : "Schedule New Post"}
+            </h2>
+            <p className="mt-1 text-sm text-gray-500">
+              {editingPost ? "Update your post content and schedule" : "Create content for your verified groups"}
+            </p>
+            {editingPost && (
+              <button
+                onClick={() => {
+                  setEditingPost(null)
+                  setForm(initialPost)
+                }}
+                className="mt-2 text-sm text-gray-500 hover:text-gray-700"
+              >
+                ← Cancel editing
+              </button>
+            )}
           </div>
 
           {message && (
@@ -388,18 +497,111 @@ export default function AppPostsPage() {
               />
             </div>
 
+            {/* Recurring Schedule Options */}
+            <div className="rounded-lg border border-gray-200 bg-gray-50 p-4">
+              <div className="flex items-center mb-3">
+                <input
+                  type="checkbox"
+                  id="isRecurring"
+                  checked={form.isRecurring}
+                  onChange={(e) => setForm((prev) => ({ ...prev, isRecurring: e.target.checked }))}
+                  className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                />
+                <label htmlFor="isRecurring" className="ml-2 text-sm font-semibold text-gray-700">
+                  Recurring Post
+                </label>
+              </div>
+              {form.isRecurring && (
+                <div className="space-y-3 mt-3">
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">Repeat Pattern</label>
+                    <select
+                      value={form.recurrencePattern}
+                      onChange={(e) => setForm((prev) => ({ ...prev, recurrencePattern: e.target.value as any }))}
+                      className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
+                    >
+                      <option value="daily">Daily</option>
+                      <option value="weekly">Weekly</option>
+                      <option value="monthly">Monthly</option>
+                      <option value="custom">Custom Interval</option>
+                    </select>
+                  </div>
+                  {form.recurrencePattern === "custom" && (
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 mb-1">Every N Days</label>
+                      <input
+                        type="number"
+                        min="1"
+                        value={form.recurrenceInterval}
+                        onChange={(e) => setForm((prev) => ({ ...prev, recurrenceInterval: parseInt(e.target.value) || 1 }))}
+                        className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
+                      />
+                    </div>
+                  )}
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">End Date (optional)</label>
+                    <input
+                      type="datetime-local"
+                      value={form.recurrenceEndDate}
+                      onChange={(e) => setForm((prev) => ({ ...prev, recurrenceEndDate: e.target.value }))}
+                      className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">Max Occurrences (optional)</label>
+                    <input
+                      type="number"
+                      min="1"
+                      value={form.recurrenceCount || ""}
+                      onChange={(e) => setForm((prev) => ({ ...prev, recurrenceCount: e.target.value ? parseInt(e.target.value) : undefined }))}
+                      className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
+                      placeholder="Unlimited if empty"
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+
             <div>
               <label className="block text-sm font-semibold text-gray-700 mb-1">Post Content</label>
+              <FormattingToolbar
+                onFormat={(format: FormatType) => {
+                  const textarea = contentRef.current
+                  if (!textarea) return
+
+                  let extra: string | undefined
+                  if (format === "link") {
+                    const url = prompt("Enter URL (https://example.com)")
+                    if (!url) return
+                    extra = url
+                  }
+
+                  const { value, cursor } = applyFormatting(
+                    form.content,
+                    textarea.selectionStart,
+                    textarea.selectionEnd,
+                    format,
+                    extra
+                  )
+
+                  setForm((prev) => ({ ...prev, content: value }))
+                  requestAnimationFrame(() => {
+                    textarea.focus()
+                    textarea.setSelectionRange(cursor, cursor)
+                  })
+                }}
+              />
               <textarea
+                ref={contentRef}
                 value={form.content}
                 onChange={(e) => setForm((prev) => ({ ...prev, content: e.target.value }))}
-                className="w-full rounded-lg border border-gray-300 px-4 py-2.5 text-sm transition-all focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
-                rows={6}
-                placeholder="Write your post content here..."
+                className="w-full rounded-lg border border-gray-300 px-4 py-2.5 text-sm transition-all focus:border-blue-500 focus:ring-2 focus:ring-blue-200 font-mono"
+                rows={8}
+                placeholder="Write your post content here... Use formatting buttons above for bold, italic, links, etc."
                 required
               />
               <p className="mt-1 text-xs text-gray-500">
-                {form.content.length} characters
+                {form.content.length} characters • Supports: [b]bold[/b], [i]italic[/i], [u]underline[/u], [s]strike[/s], [code]code[/code], [link=URL]text[/link]
               </p>
             </div>
 
@@ -556,9 +758,43 @@ export default function AppPostsPage() {
               disabled={submitting || verifiedGroups.length === 0}
               className="w-full rounded-lg bg-gradient-to-r from-blue-600 to-indigo-600 px-6 py-3 text-sm font-semibold text-white shadow-md transition-all hover:from-blue-700 hover:to-indigo-700 hover:shadow-lg disabled:opacity-60 disabled:cursor-not-allowed"
             >
-              {submitting ? "⏳ Scheduling..." : "📅 Schedule Post"}
+              {submitting
+                ? editingPost
+                  ? "⏳ Updating..."
+                  : "⏳ Scheduling..."
+                : editingPost
+                  ? "✏️ Update Post"
+                  : "📅 Schedule Post"}
             </button>
           </form>
+        </section>
+      </div>
+
+      {/* Delete Confirmation Modal */}
+      {showDeleteConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4">
+          <div className="w-full max-w-md rounded-lg border border-gray-200 bg-white p-6 shadow-xl">
+            <h2 className="text-xl font-semibold text-gray-900 mb-4">Delete Post</h2>
+            <p className="text-sm text-gray-600 mb-6">
+              Are you sure you want to delete this post? This action cannot be undone.
+            </p>
+            <div className="flex justify-end space-x-3">
+              <button
+                onClick={() => setShowDeleteConfirm(null)}
+                className="rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => handleDeletePost(showDeleteConfirm)}
+                className="rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-red-700"
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
         </section>
       </div>
     </div>

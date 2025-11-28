@@ -35,7 +35,8 @@ export default function AppLayout({ children }: AppLayoutProps) {
     { name: "Overview", href: "/app", icon: "📊" },
     { name: "My Groups", href: "/app/groups", icon: "👥" },
     { name: "My Posts", href: "/app/posts", icon: "📝" },
-    { name: "Dashboard", href: "/dashboard", icon: "⚙️" },
+    { name: "Manage", href: "/dashboard", icon: "⚙️" },
+    ...(session?.user?.role === "ADMIN" ? [{ name: "Admin", href: "/admin", icon: "🔧" }] : []),
   ]
   
   // Admin users see both App and Admin links

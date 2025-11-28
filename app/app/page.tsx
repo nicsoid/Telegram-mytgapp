@@ -13,6 +13,10 @@ type Stats = {
   postsCount: number
   scheduledPostsCount: number
   sentPostsCount: number
+  totalRevenue: number
+  totalSpent: number
+  subscriptionTier: string
+  subscriptionStatus: string
 }
 
 export default function AppPage() {
@@ -29,10 +33,16 @@ export default function AppPage() {
   const [showCreditModal, setShowCreditModal] = useState(false)
 
   useEffect(() => {
+    // Wait for session status to be determined before loading stats
+    if (status === "loading") {
+      return // Still loading, don't do anything
+    }
     if (session?.user) {
       loadStats()
+    } else if (status === "unauthenticated") {
+      setLoading(false) // User is not authenticated, stop loading
     }
-  }, [session])
+  }, [session, status])
 
   const loadStats = async () => {
     try {

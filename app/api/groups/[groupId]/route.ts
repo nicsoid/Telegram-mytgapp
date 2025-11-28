@@ -38,11 +38,37 @@ export async function PATCH(
       return NextResponse.json({ error: "Unauthorized" }, { status: 403 })
     }
 
-    // Update group
-    const updatedGroup = await prisma.telegramGroup.update({
-      where: { id: groupId },
-      data,
-    })
+    // Update group - only include fields that exist
+    const updateData: any = {}
+    if (data.pricePerPost !== undefined) updateData.pricePerPost = data.pricePerPost
+    if (data.freePostIntervalDays !== undefined) updateData.freePostIntervalDays = data.freePostIntervalDays
+    if (data.isActive !== undefined) updateData.isActive = data.isActive
+    
+    // Only include advertiserMessage if provided (field may not exist if migration not applied)
+    if (data.advertiserMessage !== undefined) {
+      // Try to include it, but catch error if field doesn't exist
+      updateData.advertiserMessage = data.advertiserMessage
+    }
+
+    try {
+      const updatedGroup = await prisma.telegramGroup.update({
+        where: { id: groupId },
+        data: updateData,
+      })
+      return NextResponse.json({ group: updatedGroup })
+    } catch (error: any) {
+      // If advertiserMessage field doesn't exist, retry without it
+      if (error?.message?.includes("advertiserMessage") || error?.code === "P2009") {
+        console.warn("advertiserMessage field not available, updating without it")
+        delete updateData.advertiserMessage
+        const updatedGroup = await prisma.telegramGroup.update({
+          where: { id: groupId },
+          data: updateData,
+        })
+        return NextResponse.json({ group: updatedGroup })
+      }
+      throw error
+    }
 
     return NextResponse.json({ group: updatedGroup })
   } catch (error) {

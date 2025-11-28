@@ -12,6 +12,14 @@ const createPostSchema = z.object({
   scheduledAt: z.string().datetime(),
   isPaidAd: z.boolean().default(false),
   advertiserId: z.string().optional(),
+  // Recurring scheduling
+  isRecurring: z.boolean().optional().default(false),
+  recurrencePattern: z.enum(["daily", "weekly", "monthly", "custom"]).optional(),
+  recurrenceInterval: z.number().int().min(1).optional(), // For custom pattern
+  recurrenceEndDate: z.string().datetime().optional().nullable(),
+  recurrenceCount: z.number().int().min(1).optional(), // Max occurrences
+  // For duplicating
+  duplicateFrom: z.string().optional(), // Post ID to duplicate from
 })
 
 export async function GET(request: NextRequest) {
@@ -80,8 +88,46 @@ export async function POST(request: NextRequest) {
   }
 
   const body = await request.json()
-  const { groupId, content, mediaUrls, scheduledAt, isPaidAd, advertiserId } =
-    createPostSchema.parse(body)
+  const {
+    groupId,
+    content,
+    mediaUrls,
+    scheduledAt,
+    isPaidAd,
+    advertiserId,
+    isRecurring,
+    recurrencePattern,
+    recurrenceInterval,
+    recurrenceEndDate,
+    recurrenceCount,
+    duplicateFrom,
+  } = createPostSchema.parse(body)
+
+  // If duplicating, fetch the original post
+  let duplicatePost: any = null
+  if (duplicateFrom) {
+    duplicatePost = await prisma.telegramPost.findUnique({
+      where: { id: duplicateFrom },
+      select: {
+        content: true,
+        mediaUrls: true,
+        groupId: true,
+      },
+    })
+    if (!duplicatePost) {
+      return NextResponse.json({ error: "Post to duplicate not found" }, { status: 404 })
+    }
+    // Use duplicate post data if not provided
+    if (!content) {
+      body.content = duplicatePost.content
+    }
+    if (!mediaUrls || mediaUrls.length === 0) {
+      body.mediaUrls = duplicatePost.mediaUrls
+    }
+    if (!groupId) {
+      body.groupId = duplicatePost.groupId
+    }
+  }
 
   // Verify group exists and get owner
   // Try with subscription fields first, fallback if migration not applied
@@ -280,6 +326,32 @@ export async function POST(request: NextRequest) {
   // Create post and update free posts counter if it's a free post
   const post = await prisma.$transaction(async (tx) => {
     const ownerId = group.userId
+    // Calculate next occurrence for recurring posts
+    let nextOccurrence: Date | null = null
+    if (isRecurring && recurrencePattern) {
+      const baseDate = new Date(scheduledAt)
+      switch (recurrencePattern) {
+        case "daily":
+          nextOccurrence = new Date(baseDate)
+          nextOccurrence.setDate(nextOccurrence.getDate() + 1)
+          break
+        case "weekly":
+          nextOccurrence = new Date(baseDate)
+          nextOccurrence.setDate(nextOccurrence.getDate() + 7)
+          break
+        case "monthly":
+          nextOccurrence = new Date(baseDate)
+          nextOccurrence.setMonth(nextOccurrence.getMonth() + 1)
+          break
+        case "custom":
+          if (recurrenceInterval) {
+            nextOccurrence = new Date(baseDate)
+            nextOccurrence.setDate(nextOccurrence.getDate() + recurrenceInterval)
+          }
+          break
+      }
+    }
+
     const newPost = await tx.telegramPost.create({
       data: {
         groupId,
@@ -291,6 +363,12 @@ export async function POST(request: NextRequest) {
         status: PostStatus.SCHEDULED,
         isPaidAd,
         creditsPaid,
+        isRecurring: isRecurring || false,
+        recurrencePattern: recurrencePattern || null,
+        recurrenceInterval: recurrenceInterval || null,
+        recurrenceEndDate: recurrenceEndDate ? new Date(recurrenceEndDate) : null,
+        recurrenceCount: recurrenceCount || null,
+        nextOccurrence,
       },
     })
 

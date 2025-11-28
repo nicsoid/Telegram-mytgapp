@@ -180,6 +180,14 @@ model TelegramPost {
   isPaidAd      Boolean    @default(false)
   creditsPaid   Int? // Credits paid for this post (if paid ad)
   campaignId    String? // If part of a campaign
+  // Recurring scheduling fields
+  isRecurring   Boolean    @default(false)
+  recurrencePattern String? // "daily", "weekly", "monthly", "custom"
+  recurrenceInterval Int? // For custom: every N days
+  recurrenceEndDate DateTime? // When to stop recurring
+  recurrenceCount Int? // Max number of occurrences
+  parentPostId  String? // If this is a recurring instance, link to parent
+  nextOccurrence DateTime? // Next scheduled occurrence
   createdAt     DateTime   @default(now())
   updatedAt     DateTime   @updatedAt
 
