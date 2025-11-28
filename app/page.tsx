@@ -14,29 +14,69 @@ export default function HomePage() {
   const router = useRouter()
   const [isTelegram, setIsTelegram] = useState(false)
   const [isClient, setIsClient] = useState(false)
+  const [scriptLoaded, setScriptLoaded] = useState(false)
 
+  // Initialize and load Telegram script
   useEffect(() => {
     setIsClient(true)
-    // Check if we're in Telegram WebApp
-    if (typeof window !== "undefined") {
-      const tg = (window as any).Telegram?.WebApp
-      if (tg) {
-        setIsTelegram(true)
-        tg.ready()
+    
+    if (typeof window === "undefined") return
+    
+    // Check if Telegram is already available (script might be loaded by Telegram itself)
+    if ((window as any).Telegram?.WebApp) {
+      console.log('[HomePage] Telegram WebApp already available')
+      setIsTelegram(true)
+      setScriptLoaded(true)
+      return
+    }
+    
+    // Load script if not already present
+    if (!document.querySelector('script[src*="telegram-web-app.js"]')) {
+      const script = document.createElement('script')
+      script.src = 'https://telegram.org/js/telegram-web-app.js'
+      script.async = true
+      script.onload = () => {
+        console.log('[HomePage] Telegram WebApp script loaded')
+        // Check for WebApp after script loads
+        setTimeout(() => {
+          const tg = (window as any).Telegram?.WebApp
+          if (tg) {
+            console.log('[HomePage] Telegram WebApp detected after script load')
+            setIsTelegram(true)
+            tg.ready()
+          }
+          setScriptLoaded(true)
+        }, 100)
       }
+      script.onerror = () => {
+        console.warn('[HomePage] Failed to load Telegram WebApp script')
+        setScriptLoaded(true) // Continue anyway
+      }
+      document.head.appendChild(script)
+    } else {
+      // Script tag exists, wait a bit and check
+      setTimeout(() => {
+        const tg = (window as any).Telegram?.WebApp
+        if (tg) {
+          console.log('[HomePage] Telegram WebApp detected (script was already loading)')
+          setIsTelegram(true)
+          tg.ready()
+        }
+        setScriptLoaded(true)
+      }, 200)
     }
   }, [])
 
   // If user is logged in and not in Telegram, redirect to app
   useEffect(() => {
-    if (isClient && !isTelegram && session?.user && status === "authenticated") {
+    if (isClient && !isTelegram && scriptLoaded && session?.user && status === "authenticated") {
       // User is logged in on web, redirect to app
       router.push("/app")
     }
-  }, [isClient, isTelegram, session, status, router])
+  }, [isClient, isTelegram, scriptLoaded, session, status, router])
 
-  // Show loading while detecting
-  if (!isClient || status === "loading") {
+  // Show loading while detecting or while session is loading
+  if (!isClient || !scriptLoaded || status === "loading") {
     return (
       <div className="flex min-h-screen items-center justify-center">
         <div className="text-center">

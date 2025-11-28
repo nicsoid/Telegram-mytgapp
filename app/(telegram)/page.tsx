@@ -111,6 +111,19 @@ export default function TelegramMiniAppPage() {
     // Check if we're in Telegram WebApp
     const isInTelegram = typeof window !== "undefined" && (window as any).Telegram?.WebApp
     
+    // If in Telegram, wait a bit longer for auto-auth to complete
+    if (isInTelegram && status === "loading") {
+      return (
+        <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 px-4">
+          <div className="text-center">
+            <div className="mb-4 text-4xl">⏳</div>
+            <p className="text-gray-600">Authenticating...</p>
+            <p className="mt-2 text-sm text-gray-500">Please wait while we sign you in</p>
+          </div>
+        </div>
+      )
+    }
+    
     return (
       <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 px-4">
         <div className="text-center max-w-md">
@@ -119,14 +132,22 @@ export default function TelegramMiniAppPage() {
           {isInTelegram ? (
             <>
               <p className="text-sm text-gray-500 mb-4">
-                We're having trouble authenticating you automatically. Please try refreshing the page.
+                We're having trouble authenticating you automatically. This might be because:
               </p>
+              <ul className="text-sm text-gray-500 mb-4 text-left list-disc list-inside space-y-1">
+                <li>The bot token is not configured correctly</li>
+                <li>Your Telegram account is not verified</li>
+                <li>There was an error during authentication</li>
+              </ul>
               <button
                 onClick={() => window.location.reload()}
                 className="rounded-lg bg-blue-600 px-4 py-2 text-white font-medium hover:bg-blue-700 transition-colors"
               >
                 Refresh Page
               </button>
+              <p className="mt-4 text-xs text-gray-400">
+                Check the browser console for error messages
+              </p>
             </>
           ) : (
             <p className="text-sm text-gray-500">

@@ -26,9 +26,8 @@ export default function GroupsManager() {
   const [loading, setLoading] = useState(true)
   const [showAddForm, setShowAddForm] = useState(false)
   const [formData, setFormData] = useState({
-    telegramChatId: "",
-    name: "",
     username: "",
+    name: "",
     description: "",
     pricePerPost: "1",
     freePostIntervalDays: "7",
@@ -69,9 +68,8 @@ export default function GroupsManager() {
         headers: { "Content-Type": "application/json" },
         credentials: "include",
         body: JSON.stringify({
-          telegramChatId: formData.telegramChatId,
-          name: formData.name,
-          username: formData.username || undefined,
+          username: formData.username,
+          name: formData.name || undefined,
           description: formData.description || undefined,
           pricePerPost: parseInt(formData.pricePerPost),
           freePostIntervalDays: parseInt(formData.freePostIntervalDays),
@@ -88,9 +86,8 @@ export default function GroupsManager() {
       setSuccess("Group added successfully!")
       setVerificationCode(data.verificationCode)
       setFormData({
-        telegramChatId: "",
-        name: "",
         username: "",
+        name: "",
         description: "",
         pricePerPost: "1",
         freePostIntervalDays: "7",
@@ -161,41 +158,36 @@ export default function GroupsManager() {
             <form onSubmit={handleSubmit} className="mt-4 space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700">
-                  Telegram Chat ID *
+                  Group Username or Link *
                 </label>
                 <input
                   type="text"
                   required
-                  value={formData.telegramChatId}
-                  onChange={(e) => setFormData({ ...formData, telegramChatId: e.target.value })}
+                  value={formData.username}
+                  onChange={(e) => setFormData({ ...formData, username: e.target.value })}
                   className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-blue-500"
-                  placeholder="-1001234567890"
+                  placeholder="@mygroup or https://t.me/mygroup"
                 />
                 <p className="mt-1 text-xs text-gray-500">
-                  Get this from your group settings or use a bot like @userinfobot
+                  Enter the group username (e.g., @mygroup) or link (e.g., https://t.me/mygroup). 
+                  The group name and chat ID will be automatically fetched from Telegram.
                 </p>
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700">Group Name *</label>
+                <label className="block text-sm font-medium text-gray-700">
+                  Group Name (optional)
+                </label>
                 <input
                   type="text"
-                  required
                   value={formData.name}
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                   className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-blue-500"
+                  placeholder="Will be auto-filled from Telegram if available"
                 />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700">Username (if public)</label>
-                <input
-                  type="text"
-                  value={formData.username}
-                  onChange={(e) => setFormData({ ...formData, username: e.target.value })}
-                  className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-blue-500"
-                  placeholder="@mygroup"
-                />
+                <p className="mt-1 text-xs text-gray-500">
+                  Leave empty to auto-fill from Telegram, or enter a custom name
+                </p>
               </div>
 
               <div>
