@@ -37,6 +37,8 @@ export default function AppPostsPage() {
   const [submitting, setSubmitting] = useState(false)
   const [form, setForm] = useState(initialPost)
   const [message, setMessage] = useState<string | null>(null)
+  const [uploading, setUploading] = useState(false)
+  const [uploadError, setUploadError] = useState<string | null>(null)
 
   const verifiedGroups = useMemo(() => groups.filter((g) => g.isVerified), [groups])
 
@@ -72,10 +74,43 @@ export default function AppPostsPage() {
     }
   }
 
-  const handleAddMediaUrl = () => {
-    const url = prompt("Enter media URL (image or video):")
-    if (url && url.trim()) {
-      setForm((prev) => ({ ...prev, mediaUrls: [...prev.mediaUrls, url.trim()] }))
+  const handleFileUpload = async (files: FileList | null, isImage: boolean) => {
+    if (!files?.length) return
+
+    setUploadError(null)
+    setUploading(true)
+
+    const filesArray = Array.from(files)
+    const newUrls: string[] = []
+
+    try {
+      for (const file of filesArray) {
+        const formData = new FormData()
+        formData.append("file", file)
+
+        const res = await fetch("/api/uploads", {
+          method: "POST",
+          body: formData,
+          credentials: "include",
+        })
+
+        const result = await res.json()
+
+        if (!res.ok) {
+          throw new Error(result.error || "Failed to upload file")
+        }
+
+        newUrls.push(result.url)
+      }
+
+      setForm((prev) => ({
+        ...prev,
+        mediaUrls: [...prev.mediaUrls, ...newUrls],
+      }))
+    } catch (err: any) {
+      setUploadError(err.message || "Failed to upload file")
+    } finally {
+      setUploading(false)
     }
   }
 
@@ -84,6 +119,13 @@ export default function AppPostsPage() {
       ...prev,
       mediaUrls: prev.mediaUrls.filter((_, i) => i !== index),
     }))
+  }
+
+  const handleAddMediaUrl = () => {
+    const url = prompt("Enter media URL (image or video):")
+    if (url && url.trim()) {
+      setForm((prev) => ({ ...prev, mediaUrls: [...prev.mediaUrls, url.trim()] }))
+    }
   }
 
   const handlePostSubmit = async (e: React.FormEvent) => {
@@ -316,36 +358,107 @@ export default function AppPostsPage() {
             </div>
 
             <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2">Media URLs</label>
-              {form.mediaUrls.length > 0 && (
-                <div className="mb-2 space-y-2">
-                  {form.mediaUrls.map((url, index) => (
-                    <div
-                      key={index}
-                      className="flex items-center justify-between rounded-lg border border-gray-200 bg-gray-50 px-3 py-2"
-                    >
-                      <span className="truncate text-xs text-gray-600">{url}</span>
-                      <button
-                        type="button"
-                        onClick={() => handleRemoveMediaUrl(index)}
-                        className="ml-2 text-red-600 hover:text-red-700"
-                      >
-                        ✕
-                      </button>
-                    </div>
-                  ))}
+              <label className="block text-sm font-semibold text-gray-700 mb-2">Media Files</label>
+              
+              {/* Image Upload */}
+              <div className="mb-3">
+                <label className="block text-xs font-medium text-gray-600 mb-1">Upload Images</label>
+                <input
+                  type="file"
+                  accept="image/png,image/jpeg,image/webp"
+                  multiple
+                  onChange={(e) => handleFileUpload(e.target.files, true)}
+                  disabled={uploading}
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm transition-all focus:border-blue-500 focus:ring-2 focus:ring-blue-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                />
+                <p className="mt-1 text-xs text-gray-500">JPEG, PNG, WebP up to 5MB each</p>
+              </div>
+
+              {/* Video Upload */}
+              <div className="mb-3">
+                <label className="block text-xs font-medium text-gray-600 mb-1">Upload Videos</label>
+                <input
+                  type="file"
+                  accept="video/mp4,video/mpeg,video/quicktime,video/x-msvideo"
+                  multiple
+                  onChange={(e) => handleFileUpload(e.target.files, false)}
+                  disabled={uploading}
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm transition-all focus:border-blue-500 focus:ring-2 focus:ring-blue-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                />
+                <p className="mt-1 text-xs text-gray-500">MP4, MPEG, MOV, AVI up to 50MB each</p>
+              </div>
+
+              {/* Or Add URL */}
+              <div className="mb-3">
+                <button
+                  type="button"
+                  onClick={handleAddMediaUrl}
+                  className="w-full rounded-lg border-2 border-dashed border-gray-300 bg-gray-50 px-4 py-2 text-sm font-medium text-gray-700 transition-all hover:border-blue-400 hover:bg-blue-50"
+                >
+                  + Or Add Media URL
+                </button>
+              </div>
+
+              {uploadError && (
+                <div className="mb-2 rounded-lg bg-red-50 border border-red-200 p-2 text-xs text-red-700">
+                  {uploadError}
                 </div>
               )}
-              <button
-                type="button"
-                onClick={handleAddMediaUrl}
-                className="w-full rounded-lg border-2 border-dashed border-gray-300 bg-gray-50 px-4 py-2.5 text-sm font-medium text-gray-700 transition-all hover:border-blue-400 hover:bg-blue-50"
-              >
-                + Add Media URL
-              </button>
-              <p className="mt-1 text-xs text-gray-500">
-                Add image or video URLs (one per line)
-              </p>
+
+              {uploading && (
+                <div className="mb-2 text-xs text-blue-600">Uploading files...</div>
+              )}
+
+              {/* Media Preview */}
+              {form.mediaUrls.length > 0 && (
+                <div className="mt-4 space-y-2">
+                  <p className="text-xs font-medium text-gray-700">Uploaded Media ({form.mediaUrls.length})</p>
+                  <div className="space-y-2 max-h-48 overflow-y-auto">
+                    {form.mediaUrls.map((url, index) => {
+                      const isImage = /\.(jpg|jpeg|png|webp|gif)$/i.test(url)
+                      const isVideo = /\.(mp4|mpeg|mov|avi)$/i.test(url)
+                      
+                      return (
+                        <div
+                          key={index}
+                          className="flex items-center gap-3 rounded-lg border border-gray-200 bg-gray-50 p-2"
+                        >
+                          {isImage ? (
+                            <img
+                              src={url}
+                              alt={`Media ${index + 1}`}
+                              className="h-16 w-16 rounded object-cover"
+                            />
+                          ) : isVideo ? (
+                            <video
+                              src={url}
+                              className="h-16 w-16 rounded object-cover"
+                              muted
+                            />
+                          ) : (
+                            <div className="h-16 w-16 rounded bg-gray-200 flex items-center justify-center">
+                              📎
+                            </div>
+                          )}
+                          <div className="flex-1 min-w-0">
+                            <p className="text-xs font-medium text-gray-900 truncate">
+                              {url.split("/").pop()}
+                            </p>
+                            <p className="text-xs text-gray-500 truncate">{url}</p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveMediaUrl(index)}
+                            className="px-2 py-1 text-xs bg-red-600 text-white rounded hover:bg-red-700 transition-colors"
+                          >
+                            Remove
+                          </button>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
             </div>
 
             <label className="flex items-center space-x-3 rounded-lg border border-gray-200 bg-gray-50 p-3 cursor-pointer hover:bg-gray-100 transition-colors">
