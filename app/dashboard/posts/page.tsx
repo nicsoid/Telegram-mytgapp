@@ -9,9 +9,7 @@ export default async function PostsPage() {
     redirect("/auth/signin")
   }
 
-  if (session.user.role !== "PUBLISHER") {
-    redirect("/")
-  }
+  // Dashboard pages require active subscription - handled by layout
 
   return <PostsManager />
 }

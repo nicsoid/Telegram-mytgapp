@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
-import { requirePublisherSession } from "@/lib/admin"
+import { requireActiveSubscription } from "@/lib/admin"
+import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { z } from "zod"
 import { PostStatus } from "@prisma/client"
@@ -14,15 +15,20 @@ const createPostSchema = z.object({
 })
 
 export async function GET(request: NextRequest) {
-  const guard = await requirePublisherSession()
-  if ("response" in guard) return guard.response
+  const session = await auth()
+  if (!session?.user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  }
 
   const { searchParams } = new URL(request.url)
   const groupId = searchParams.get("groupId")
   const status = searchParams.get("status")
 
   const where: any = {
-    publisherId: guard.publisher.id,
+    OR: [
+      { ownerId: session.user.id }, // Posts in groups owned by user
+      { advertiserId: session.user.id }, // Posts where user is advertiser
+    ],
   }
 
   if (groupId) {
@@ -57,24 +63,50 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  const guard = await requirePublisherSession()
-  if ("response" in guard) return guard.response
+  const session = await auth()
+  if (!session?.user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  }
 
   const body = await request.json()
   const { groupId, content, mediaUrls, scheduledAt, isPaidAd, advertiserId } =
     createPostSchema.parse(body)
 
-  // Verify group belongs to publisher
+  // Verify group exists and get owner
   const group = await prisma.telegramGroup.findUnique({
     where: { id: groupId },
+    include: {
+      user: {
+        select: {
+          id: true,
+          freePostsUsed: true,
+          freePostsLimit: true,
+          subscriptionTier: true,
+          subscriptionStatus: true,
+          subscriptionExpiresAt: true,
+          revenueSharePercent: true,
+          subscriptions: {
+            where: {
+              status: "ACTIVE",
+              tier: { not: "FREE" },
+            },
+          },
+        },
+      },
+    },
   })
 
   if (!group) {
     return NextResponse.json({ error: "Group not found" }, { status: 404 })
   }
 
-  if (group.publisherId !== guard.publisher.id) {
-    return NextResponse.json({ error: "Group not found" }, { status: 404 })
+  // Check if user owns the group or is posting as advertiser
+  const isGroupOwner = group.userId === session.user.id
+  const isOwnPost = !isPaidAd || !advertiserId
+
+  // Only group owner can post their own posts
+  if (isOwnPost && !isGroupOwner) {
+    return NextResponse.json({ error: "Only group owner can post to their group" }, { status: 403 })
   }
 
   if (!group.isVerified) {
@@ -84,46 +116,22 @@ export async function POST(request: NextRequest) {
     )
   }
 
-  // Check if this is publisher's own post (not a paid ad)
-  const isOwnPost = !isPaidAd || !advertiserId
-
-  // For publisher's own posts, check free posts or subscription
-  if (isOwnPost) {
-    const publisher = await prisma.publisher.findUnique({
-      where: { id: guard.publisher.id },
-      select: {
-        id: true,
-        freePostsUsed: true,
-        freePostsLimit: true,
-        subscriptionTier: true,
-        subscriptionStatus: true,
-        subscriptionExpiresAt: true,
-        subscriptions: {
-          where: {
-            status: "ACTIVE",
-          },
-        },
-      },
-    })
-
-    if (!publisher) {
-      return NextResponse.json({ error: "Publisher not found" }, { status: 404 })
-    }
-
-    // Check if publisher has free posts available
-    const hasFreePosts = publisher.freePostsUsed < publisher.freePostsLimit
-    const hasActiveSubscription = publisher.subscriptions.length > 0 || 
-                                  (publisher.subscriptionStatus === "ACTIVE" && 
-                                   publisher.subscriptionTier !== "FREE" &&
-                                   (!publisher.subscriptionExpiresAt || publisher.subscriptionExpiresAt > new Date()))
+  // For group owner's own posts, check free posts or subscription
+  if (isOwnPost && isGroupOwner) {
+    const user = group.user
+    const hasFreePosts = user.freePostsUsed < user.freePostsLimit
+    const hasActiveSubscription = user.subscriptions.length > 0 || 
+                                  (user.subscriptionStatus === "ACTIVE" && 
+                                   user.subscriptionTier !== "FREE" &&
+                                   (!user.subscriptionExpiresAt || user.subscriptionExpiresAt > new Date()))
 
     if (!hasFreePosts && !hasActiveSubscription) {
       return NextResponse.json(
         { 
           error: "No free posts remaining. Please subscribe to continue posting.",
           requiresSubscription: true,
-          freePostsUsed: publisher.freePostsUsed,
-          freePostsLimit: publisher.freePostsLimit,
+          freePostsUsed: user.freePostsUsed,
+          freePostsLimit: user.freePostsLimit,
         },
         { status: 403 }
       )
@@ -169,22 +177,24 @@ export async function POST(request: NextRequest) {
         },
       })
 
-      // Publisher earns credits (minus commission)
-      const commissionPercent = guard.publisher.revenueSharePercent || 0.2 // Default 20%
-      const publisherEarnings = Math.floor(price * (1 - commissionPercent))
-      const commission = price - publisherEarnings
+      // Group owner earns credits (minus commission)
+      const owner = group.user
+      const commissionPercent = owner.revenueSharePercent || 0.2 // Default 20%
+      const ownerEarnings = Math.floor(price * (1 - commissionPercent))
+      const commission = price - ownerEarnings
 
       await tx.user.update({
-        where: { id: guard.publisher.userId },
+        where: { id: owner.id },
         data: {
-          credits: { increment: publisherEarnings },
+          credits: { increment: ownerEarnings },
+          totalEarnings: { increment: ownerEarnings },
         },
       })
 
       await tx.creditTransaction.create({
         data: {
-          userId: guard.publisher.userId,
-          amount: publisherEarnings,
+          userId: owner.id,
+          amount: ownerEarnings,
           type: "EARNED",
           relatedPostId: null,
           relatedGroupId: groupId,
@@ -194,10 +204,9 @@ export async function POST(request: NextRequest) {
 
       // Platform commission
       if (commission > 0) {
-        // Could create a system user or just track in transactions
         await tx.creditTransaction.create({
           data: {
-            userId: guard.publisher.userId, // Track commission against publisher for reporting
+            userId: owner.id, // Track commission against owner for reporting
             amount: -commission,
             type: "COMMISSION",
             relatedPostId: null,
@@ -210,14 +219,7 @@ export async function POST(request: NextRequest) {
       await tx.telegramGroup.update({
         where: { id: groupId },
         data: {
-          totalRevenue: { increment: publisherEarnings },
-        },
-      })
-
-      await tx.publisher.update({
-        where: { id: guard.publisher.id },
-        data: {
-          totalEarnings: { increment: publisherEarnings },
+          totalRevenue: { increment: ownerEarnings },
         },
       })
 
@@ -227,10 +229,11 @@ export async function POST(request: NextRequest) {
 
   // Create post and update free posts counter if it's a free post
   const post = await prisma.$transaction(async (tx) => {
+    const ownerId = group.userId
     const newPost = await tx.telegramPost.create({
       data: {
         groupId,
-        publisherId: guard.publisher.id,
+        ownerId,
         advertiserId: isPaidAd ? advertiserId : null,
         content,
         mediaUrls: mediaUrls || [],
@@ -241,15 +244,15 @@ export async function POST(request: NextRequest) {
       },
     })
 
-    // If it's publisher's own post and they have free posts, increment counter
-    if (isOwnPost) {
-      const publisher = await tx.publisher.findUnique({
-        where: { id: guard.publisher.id },
+    // If it's owner's own post and they have free posts, increment counter
+    if (isOwnPost && isGroupOwner) {
+      const owner = await tx.user.findUnique({
+        where: { id: ownerId },
       })
 
-      if (publisher && publisher.freePostsUsed < publisher.freePostsLimit) {
-        await tx.publisher.update({
-          where: { id: guard.publisher.id },
+      if (owner && owner.freePostsUsed < owner.freePostsLimit) {
+        await tx.user.update({
+          where: { id: ownerId },
           data: {
             freePostsUsed: { increment: 1 },
           },
@@ -258,7 +261,7 @@ export async function POST(request: NextRequest) {
         // Create transaction record for free post
         await tx.creditTransaction.create({
           data: {
-            userId: guard.publisher.userId,
+            userId: ownerId,
             amount: 0,
             type: "FREE_POST",
             relatedPostId: newPost.id,

@@ -23,28 +23,20 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    if (session.user.role !== "PUBLISHER") {
-      return NextResponse.json({ error: "Only publishers can subscribe" }, { status: 403 })
-    }
+    // All users can subscribe (no role restriction)
 
     const body = await request.json()
     const { tier, successUrl, cancelUrl } = checkoutSchema.parse(body)
 
     // FREE tier doesn't require payment
     if (tier === "FREE") {
-      const publisher = await prisma.publisher.findUnique({
-        where: { userId: session.user.id },
+      await prisma.user.update({
+        where: { id: session.user.id },
+        data: {
+          subscriptionTier: "FREE",
+          subscriptionStatus: "ACTIVE",
+        },
       })
-
-      if (publisher) {
-        await prisma.publisher.update({
-          where: { id: publisher.id },
-          data: {
-            subscriptionTier: "FREE",
-            subscriptionStatus: "ACTIVE",
-          },
-        })
-      }
 
       return NextResponse.json({
         success: true,
@@ -68,23 +60,22 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Get or create publisher
-    let publisher = await prisma.publisher.findUnique({
-      where: { userId: session.user.id },
+    // Get user (all users can subscribe now)
+    const user = await prisma.user.findUnique({
+      where: { id: session.user.id },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+      },
     })
 
-    if (!publisher) {
+    if (!user) {
       return NextResponse.json(
-        { error: "Publisher profile not found" },
+        { error: "User not found" },
         { status: 404 }
       )
     }
-
-    // Get or create Stripe customer
-    const user = await prisma.user.findUnique({
-      where: { id: session.user.id },
-      select: { email: true, name: true },
-    })
 
     let customerId: string | null = null
 
@@ -105,8 +96,7 @@ export async function POST(request: NextRequest) {
         email: user?.email || undefined,
         name: user?.name || undefined,
         metadata: {
-          userId: session.user.id,
-          publisherId: publisher.id,
+          userId: user.id,
         },
       })
       customerId = customer.id
@@ -126,7 +116,7 @@ export async function POST(request: NextRequest) {
       cancel_url: cancelUrl,
       metadata: {
         type: "subscription",
-        publisherId: publisher.id,
+        userId: user.id,
         tier,
       },
     })

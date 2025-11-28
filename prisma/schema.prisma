@@ -52,7 +52,6 @@ model VerificationToken {
 // Main application models
 enum UserRole {
   USER
-  PUBLISHER
   ADMIN
 }
 
@@ -87,70 +86,59 @@ enum CreditTransactionType {
 }
 
 model User {
-  id                                   String    @id @default(cuid())
+  id                                   String             @id @default(cuid())
   name                                 String?
-  email                                String?   @unique
+  email                                String?            @unique
   emailVerified                        DateTime?
   image                                String?
   password                             String? // For email/password auth (optional, can use Telegram only)
-  role                                 UserRole  @default(USER)
-  telegramId                           String?   @unique
+  role                                 UserRole           @default(USER)
+  telegramId                           String?            @unique
   telegramUsername                     String?
   telegramVerifiedAt                   DateTime? // When Telegram account was verified
   telegramVerificationCode             String?
   telegramVerificationExpires          DateTime?
   telegramVerificationTelegramId       String?
   telegramVerificationTelegramUsername String?
-  credits                              Int       @default(0) // Unified credit balance
-  createdAt                            DateTime  @default(now())
-  updatedAt                            DateTime  @updatedAt
+  credits                              Int                @default(0) // Unified credit balance
+  // Subscription fields (moved from Publisher)
+  subscriptionTier                     SubscriptionTier   @default(FREE)
+  subscriptionStatus                   SubscriptionStatus @default(ACTIVE)
+  subscriptionExpiresAt                DateTime?
+  revenueSharePercent                  Float? // For revenue share tier (e.g., 0.20 = 20%)
+  totalEarnings                        Int                @default(0) // Credits earned from paid posts
+  totalSpent                           Int                @default(0) // Credits spent on own posts
+  freePostsUsed                        Int                @default(0) // Free posts used (3 free posts on signup)
+  freePostsLimit                       Int                @default(3) // Free posts limit
+  pricePerCredit                       Float? // Price per credit in EUR (set by user for their groups)
+  // Verification status
+  telegramVerified                     Boolean            @default(false) // Telegram account verified
+  isVerified                           Boolean            @default(false) // Both Telegram and email verified (emailVerified DateTime? already exists above)
+  createdAt                            DateTime           @default(now())
+  updatedAt                            DateTime           @updatedAt
 
-  accounts              Account[]
-  sessions              Session[]
-  publisher             Publisher?
-  advertiserPosts       TelegramPost[]         @relation("AdvertiserPosts")
-  creditTransactions    CreditTransaction[]
-  publisherManagedUsers PublisherManagedUser[] @relation("ManagedUser")
-  creditRequests        CreditRequest[]
+  accounts           Account[]
+  sessions           Session[]
+  groups             TelegramGroup[] // Groups owned by this user
+  advertiserPosts    TelegramPost[]      @relation("AdvertiserPosts")
+  ownerPosts         TelegramPost[]      @relation("OwnerPosts") // Posts in groups owned by this user
+  creditTransactions CreditTransaction[]
+  creditRequests     CreditRequest[]     @relation("CreditRequests") // Requests from other users (this user is group owner)
+  sentCreditRequests CreditRequest[]     @relation("SentCreditRequests") // Requests sent by this user
+  subscriptions      Subscription[]
 
   @@index([email])
   @@index([telegramId])
   @@index([telegramUsername])
-}
-
-model Publisher {
-  id                    String             @id @default(cuid())
-  userId                String             @unique
-  subscriptionTier      SubscriptionTier   @default(FREE)
-  subscriptionStatus    SubscriptionStatus @default(ACTIVE)
-  subscriptionExpiresAt DateTime?
-  revenueSharePercent   Float? // For revenue share tier (e.g., 0.20 = 20%)
-  totalEarnings         Int                @default(0) // Credits earned from paid posts
-  totalSpent            Int                @default(0) // Credits spent on own posts
-  freePostsUsed         Int                @default(0) // Free posts used (3 free posts on signup)
-  freePostsLimit        Int                @default(3) // Free posts limit
-  pricePerCredit        Float? // Price per credit in EUR (set by publisher)
-  // Verification status
-  telegramVerified      Boolean            @default(false) // Telegram account verified
-  emailVerified         Boolean            @default(false) // Email verified
-  isVerified            Boolean            @default(false) // Both Telegram and email verified
-  createdAt             DateTime           @default(now())
-  updatedAt             DateTime           @updatedAt
-
-  user           User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
-  groups         TelegramGroup[]
-  posts          TelegramPost[]         @relation("PublisherPosts")
-  subscriptions  Subscription[]
-  managedUsers   PublisherManagedUser[] @relation("Publisher")
-  creditRequests CreditRequest[]
-
-  @@index([userId])
+  @@index([subscriptionStatus])
   @@index([isVerified])
 }
 
+// Publisher model removed - all functionality moved to User
+
 model TelegramGroup {
   id                   String    @id @default(cuid())
-  publisherId          String
+  userId               String // User who owns this group
   telegramChatId       String?   @unique // Telegram group chat ID (set during verification)
   name                 String
   username             String? // If public group
@@ -158,7 +146,7 @@ model TelegramGroup {
   isVerified           Boolean   @default(false) // Ownership verified via bot
   verifiedAt           DateTime?
   verificationCode     String? // Temporary code for verification
-  verifiedByBot        Boolean   @default(false) // Bot confirmed publisher is admin
+  verifiedByBot        Boolean   @default(false) // Bot confirmed user is admin
   pricePerPost         Int       @default(1) // Price in credits per post
   freePostIntervalDays Int       @default(7) // Days between free posts
   isActive             Boolean   @default(true)
@@ -169,10 +157,10 @@ model TelegramGroup {
   createdAt            DateTime  @default(now())
   updatedAt            DateTime  @updatedAt
 
-  publisher Publisher      @relation(fields: [publisherId], references: [id], onDelete: Cascade)
-  posts     TelegramPost[]
+  user  User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  posts TelegramPost[]
 
-  @@index([publisherId])
+  @@index([userId])
   @@index([telegramChatId])
   @@index([isVerified])
 }
@@ -180,8 +168,8 @@ model TelegramGroup {
 model TelegramPost {
   id            String     @id @default(cuid())
   groupId       String
-  publisherId   String
-  advertiserId  String? // If paid ad, null if publisher's own post
+  ownerId       String // User who owns the group
+  advertiserId  String? // If paid ad, null if owner's own post
   content       String     @db.Text
   mediaUrls     String[] // Array of image/video URLs
   scheduledAt   DateTime
@@ -195,11 +183,11 @@ model TelegramPost {
   updatedAt     DateTime   @updatedAt
 
   group      TelegramGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
-  publisher  Publisher     @relation("PublisherPosts", fields: [publisherId], references: [id], onDelete: Cascade)
+  owner      User          @relation("OwnerPosts", fields: [ownerId], references: [id], onDelete: Cascade)
   advertiser User?         @relation("AdvertiserPosts", fields: [advertiserId], references: [id], onDelete: SetNull)
 
   @@index([groupId])
-  @@index([publisherId])
+  @@index([ownerId])
   @@index([advertiserId])
   @@index([scheduledAt])
   @@index([status])
@@ -224,7 +212,7 @@ model CreditTransaction {
 
 model Subscription {
   id                   String             @id @default(cuid())
-  publisherId          String
+  userId               String
   tier                 SubscriptionTier
   status               SubscriptionStatus @default(ACTIVE)
   stripeSubscriptionId String?            @unique
@@ -236,10 +224,10 @@ model Subscription {
   createdAt            DateTime           @default(now())
   updatedAt            DateTime           @updatedAt
 
-  publisher Publisher @relation(fields: [publisherId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  @@unique([publisherId, tier])
-  @@index([publisherId])
+  @@unique([userId, tier])
+  @@index([userId])
   @@index([status])
 }
 
@@ -262,44 +250,27 @@ model SubscriptionTierConfig {
   @@index([isActive])
 }
 
-// Publisher-managed users (users who can post in publisher's groups)
-model PublisherManagedUser {
-  id           String   @id @default(cuid())
-  publisherId  String
-  userId       String
-  // Publisher can manage credits for this user
-  creditsAdded Int      @default(0) // Total credits added by publisher
-  notes        String?  @db.Text
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-
-  publisher Publisher @relation("Publisher", fields: [publisherId], references: [id], onDelete: Cascade)
-  user      User      @relation("ManagedUser", fields: [userId], references: [id], onDelete: Cascade)
-
-  @@unique([publisherId, userId])
-  @@index([publisherId])
-  @@index([userId])
-}
-
-// Credit requests from users to publishers (admin no longer grants credits)
+// Credit requests from users to group owners (for posting in specific groups)
 model CreditRequest {
-  id          String    @id @default(cuid())
-  userId      String
-  publisherId String // Always requesting from a publisher
-  amount      Int // Credits requested
-  reason      String?   @db.Text
-  status      String    @default("PENDING") // PENDING, APPROVED, REJECTED
-  processedBy String? // Publisher user ID who processed it
-  processedAt DateTime?
-  notes       String?   @db.Text
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  id           String    @id @default(cuid())
+  userId       String // User requesting credits
+  groupOwnerId String // User who owns the group (can grant credits for that group)
+  groupId      String? // Optional: specific group the credits are for
+  amount       Int // Credits requested
+  reason       String?   @db.Text
+  status       String    @default("PENDING") // PENDING, APPROVED, REJECTED
+  processedBy  String? // User ID who processed it
+  processedAt  DateTime?
+  notes        String?   @db.Text
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
 
-  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  publisher Publisher @relation(fields: [publisherId], references: [id], onDelete: Cascade)
+  user       User @relation("SentCreditRequests", fields: [userId], references: [id], onDelete: Cascade)
+  groupOwner User @relation("CreditRequests", fields: [groupOwnerId], references: [id], onDelete: Cascade)
 
   @@index([userId])
-  @@index([publisherId])
+  @@index([groupOwnerId])
+  @@index([groupId])
   @@index([status])
   @@index([createdAt])
 }

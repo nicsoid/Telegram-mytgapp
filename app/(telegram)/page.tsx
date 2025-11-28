@@ -51,9 +51,9 @@ export default function TelegramMiniAppPage() {
     }
   }
 
-  const handleRequestCredits = async (amount: number, reason?: string, publisherId?: string) => {
-    if (!publisherId) {
-      throw new Error("Please select a publisher to request credits from")
+  const handleRequestCredits = async (amount: number, reason?: string, groupOwnerId?: string, groupId?: string) => {
+    if (!groupOwnerId) {
+      throw new Error("Please select a group owner to request credits from")
     }
     try {
       const res = await fetch("/api/credits/request", {
@@ -63,7 +63,8 @@ export default function TelegramMiniAppPage() {
         body: JSON.stringify({
           amount,
           reason,
-          publisherId,
+          groupOwnerId,
+          groupId,
         }),
       })
 
@@ -114,11 +115,7 @@ export default function TelegramMiniAppPage() {
               <h1 className="text-2xl font-bold text-gray-900">MyTgApp</h1>
               <p className="mt-1 text-sm text-gray-600">Signed in as {displayName}</p>
             </div>
-            {session.user.role === "PUBLISHER" && (
-              <span className="rounded-full bg-purple-100 px-3 py-1 text-xs font-semibold text-purple-800">
-                Publisher
-              </span>
-            )}
+            {/* Role badge removed - all users are equal */}
           </div>
         </div>
       </div>
@@ -224,39 +221,21 @@ export default function TelegramMiniAppPage() {
               </svg>
             </Link>
 
-            {session.user.role === "PUBLISHER" ? (
-              <Link
-                href="/dashboard"
-                className="flex items-center justify-between rounded-xl border border-purple-200 bg-purple-50 p-4 shadow-sm transition-all hover:border-purple-300 hover:shadow-md"
-              >
-                <div className="flex items-center space-x-3">
-                  <div className="text-2xl">📊</div>
-                  <div>
-                    <div className="font-semibold text-purple-900">Publisher Dashboard</div>
-                    <div className="text-xs text-purple-600">Manage groups and posts</div>
-                  </div>
+            <Link
+              href="/dashboard"
+              className="flex items-center justify-between rounded-xl border border-indigo-200 bg-indigo-50 p-4 shadow-sm transition-all hover:border-indigo-300 hover:shadow-md"
+            >
+              <div className="flex items-center space-x-3">
+                <div className="text-2xl">📊</div>
+                <div>
+                  <div className="font-semibold text-indigo-900">Manage Groups</div>
+                  <div className="text-xs text-indigo-600">Add groups and post ads (subscription required)</div>
                 </div>
-                <svg className="h-5 w-5 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                </svg>
-              </Link>
-            ) : (
-              <Link
-                href="/auth/publisher/signup"
-                className="flex items-center justify-between rounded-xl border border-gradient-to-r from-purple-200 to-indigo-200 bg-gradient-to-r from-purple-50 to-indigo-50 p-4 shadow-sm transition-all hover:from-purple-100 hover:to-indigo-100 hover:shadow-md"
-              >
-                <div className="flex items-center space-x-3">
-                  <div className="text-2xl">🚀</div>
-                  <div>
-                    <div className="font-semibold text-purple-900">Become a Publisher</div>
-                    <div className="text-xs text-purple-600">Add groups and post ads to your groups</div>
-                  </div>
-                </div>
-                <svg className="h-5 w-5 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                </svg>
-              </Link>
-            )}
+              </div>
+              <svg className="h-5 w-5 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+              </svg>
+            </Link>
           </div>
         </div>
       </div>

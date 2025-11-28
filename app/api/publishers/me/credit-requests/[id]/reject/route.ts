@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { requirePublisherSession } from "@/lib/admin"
+import { requireActiveSubscription } from "@/lib/admin"
 import { prisma } from "@/lib/prisma"
 import { z } from "zod"
 
@@ -11,7 +11,7 @@ export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const guard = await requirePublisherSession()
+  const guard = await requireActiveSubscription()
   if ("response" in guard) return guard.response
 
   const { id } = await params
@@ -26,7 +26,7 @@ export async function POST(
     return NextResponse.json({ error: "Credit request not found" }, { status: 404 })
   }
 
-  if (creditRequest.publisherId !== guard.publisher.id) {
+  if (creditRequest.groupOwnerId !== guard.user.id) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 403 })
   }
 
@@ -41,7 +41,7 @@ export async function POST(
     where: { id },
     data: {
       status: "REJECTED",
-      processedBy: guard.session.user.id,
+        processedBy: guard.user.id,
       processedAt: new Date(),
       notes: reason,
     },

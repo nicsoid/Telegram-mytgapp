@@ -1,23 +1,14 @@
 import { NextRequest, NextResponse } from "next/server"
-import { requirePublisherSession } from "@/lib/admin"
+import { requireActiveSubscription } from "@/lib/admin"
 import { prisma } from "@/lib/prisma"
 
 export async function GET(request: NextRequest) {
-  const guard = await requirePublisherSession()
+  const guard = await requireActiveSubscription()
   if ("response" in guard) return guard.response
 
-  const publisher = await prisma.publisher.findUnique({
-    where: { id: guard.publisher.id },
+  const user = await prisma.user.findUnique({
+    where: { id: guard.user.id },
     include: {
-      user: {
-        select: {
-          id: true,
-          name: true,
-          email: true,
-          telegramUsername: true,
-          credits: true,
-        },
-      },
       groups: {
         select: {
           id: true,
@@ -29,16 +20,18 @@ export async function GET(request: NextRequest) {
           totalRevenue: true,
         },
       },
+      subscriptions: {
+        where: { status: "ACTIVE" },
+      },
       _count: {
         select: {
           groups: true,
-          posts: true,
-          managedUsers: true,
+          ownerPosts: true,
         },
       },
     },
   })
 
-  return NextResponse.json({ publisher })
+  return NextResponse.json({ user })
 }
 

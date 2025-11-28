@@ -15,16 +15,21 @@ export async function GET(request: NextRequest) {
   const limit = parseInt(searchParams.get("limit") || "50")
   const skip = (page - 1) * limit
 
-  const where: any = {}
+  const where: any = {
+    // Only show users who have groups or subscriptions (active publishers)
+    OR: [
+      { groups: { some: {} } },
+      { subscriptions: { some: { status: "ACTIVE" } } },
+    ],
+  }
 
   if (search) {
-    where.user = {
-      OR: [
-        { name: { contains: search, mode: "insensitive" } },
-        { email: { contains: search, mode: "insensitive" } },
-        { telegramUsername: { contains: search, mode: "insensitive" } },
-      ],
-    }
+    where.OR = [
+      ...(where.OR || []),
+      { name: { contains: search, mode: "insensitive" } },
+      { email: { contains: search, mode: "insensitive" } },
+      { telegramUsername: { contains: search, mode: "insensitive" } },
+    ]
   }
 
   if (subscriptionTier) {
@@ -39,23 +44,14 @@ export async function GET(request: NextRequest) {
     where.isVerified = isVerified === "true"
   }
 
+  // Get users with groups/subscriptions (these are the "publishers" now)
   const [publishers, total] = await Promise.all([
-    prisma.publisher.findMany({
+    prisma.user.findMany({
       where,
       skip,
       take: limit,
       orderBy: { createdAt: "desc" },
       include: {
-        user: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-            telegramUsername: true,
-            credits: true,
-            createdAt: true,
-          },
-        },
         groups: {
           select: {
             id: true,
@@ -64,16 +60,18 @@ export async function GET(request: NextRequest) {
             isActive: true,
           },
         },
+        subscriptions: {
+          where: { status: "ACTIVE" },
+        },
         _count: {
           select: {
             groups: true,
-            posts: true,
-            managedUsers: true,
+            ownerPosts: true,
           },
         },
       },
     }),
-    prisma.publisher.count({ where }),
+    prisma.user.count({ where }),
   ])
 
   return NextResponse.json({

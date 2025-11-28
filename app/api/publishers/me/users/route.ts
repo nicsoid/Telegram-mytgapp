@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { requirePublisherSession } from "@/lib/admin"
+import { requireActiveSubscription } from "@/lib/admin"
 import { prisma } from "@/lib/prisma"
 import { z } from "zod"
 
@@ -9,11 +9,12 @@ const addUserSchema = z.object({
 })
 
 export async function GET(request: NextRequest) {
-  const guard = await requirePublisherSession()
+  const guard = await requireActiveSubscription()
   if ("response" in guard) return guard.response
 
-  const managedUsers = await prisma.publisherManagedUser.findMany({
-    where: { publisherId: guard.publisher.id },
+  // Get users who have requested credits from this user (group owner)
+  const creditRequests = await prisma.creditRequest.findMany({
+    where: { groupOwnerId: guard.user.id },
     include: {
       user: {
         select: {
@@ -26,60 +27,20 @@ export async function GET(request: NextRequest) {
       },
     },
     orderBy: { createdAt: "desc" },
+    distinct: ["userId"],
   })
 
-  return NextResponse.json({ users: managedUsers })
+  const users = creditRequests.map((req) => req.user)
+
+  return NextResponse.json({ users })
 }
 
 export async function POST(request: NextRequest) {
-  const guard = await requirePublisherSession()
-  if ("response" in guard) return guard.response
-
-  const body = await request.json()
-  const { userId, notes } = addUserSchema.parse(body)
-
-  // Check if user exists
-  const user = await prisma.user.findUnique({
-    where: { id: userId },
-  })
-
-  if (!user) {
-    return NextResponse.json({ error: "User not found" }, { status: 404 })
-  }
-
-  // Check if already managed
-  const existing = await prisma.publisherManagedUser.findUnique({
-    where: {
-      publisherId_userId: {
-        publisherId: guard.publisher.id,
-        userId,
-      },
-    },
-  })
-
-  if (existing) {
-    return NextResponse.json({ error: "User already in managed list" }, { status: 400 })
-  }
-
-  const managedUser = await prisma.publisherManagedUser.create({
-    data: {
-      publisherId: guard.publisher.id,
-      userId,
-      notes: notes || null,
-    },
-    include: {
-      user: {
-        select: {
-          id: true,
-          name: true,
-          email: true,
-          telegramUsername: true,
-          credits: true,
-        },
-      },
-    },
-  })
-
-  return NextResponse.json({ user: managedUser })
+  // POST removed - users are automatically added when they request credits
+  // No need for manual user management
+  return NextResponse.json(
+    { error: "Users are automatically added when they request credits for your groups" },
+    { status: 400 }
+  )
 }
 

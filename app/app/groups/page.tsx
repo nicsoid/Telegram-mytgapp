@@ -12,11 +12,9 @@ type TelegramGroup = {
   description: string | null
   pricePerPost: number
   isVerified: boolean
-  publisher: {
-    user: {
-      name: string | null
-      telegramUsername: string | null
-    }
+  user: {
+    name: string | null
+    telegramUsername: string | null
   }
 }
 
@@ -65,12 +63,18 @@ export default function BrowseGroupsPage() {
     )
   }
 
-  // If user is a publisher, redirect to publisher groups page
-  if (session.user.role === "PUBLISHER") {
+  // Note: Subscription check moved to client-side or API route
+  // For now, show groups to all users - subscription check happens when adding groups
+  // If user wants to manage groups, they can go to dashboard (which will check subscription)
+  
+  // Show link to dashboard for managing groups (subscription required there)
+  const showDashboardLink = true // Could check subscription via API if needed
+
+  if (showDashboardLink) {
     return (
       <div className="flex min-h-screen items-center justify-center">
         <div className="text-center">
-          <p className="text-gray-600 mb-4">You are a publisher. Manage your groups from the publisher dashboard.</p>
+          <p className="text-gray-600 mb-4">You can manage your groups from the dashboard (subscription required).</p>
           <Link
             href="/dashboard/groups"
             className="inline-flex items-center rounded-lg bg-gradient-to-r from-blue-600 to-indigo-600 px-6 py-3 text-sm font-semibold text-white shadow-md transition-all hover:from-blue-700 hover:to-indigo-700 hover:shadow-lg"
@@ -155,7 +159,7 @@ export default function BrowseGroupsPage() {
                   </div>
 
                   <div className="text-xs text-gray-500">
-                    Publisher: {group.publisher.user.name || group.publisher.user.telegramUsername || "Unknown"}
+                    Owner: {group.user.name || group.user.telegramUsername || "Unknown"}
                   </div>
 
                   <Link

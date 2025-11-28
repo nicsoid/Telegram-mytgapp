@@ -65,23 +65,11 @@ export async function POST(request: NextRequest) {
     // Auto-verify for now (remove in production)
     await prisma.user.update({
       where: { id: session.user.id },
-      data: { emailVerified: new Date() },
+      data: {
+        emailVerified: new Date(),
+        isVerified: true, // Both Telegram and email verified
+      },
     })
-
-    // Update publisher verification status
-    const publisher = await prisma.publisher.findUnique({
-      where: { userId: session.user.id },
-    })
-
-    if (publisher) {
-      await prisma.publisher.update({
-        where: { id: publisher.id },
-        data: {
-          emailVerified: true,
-          isVerified: true, // Both Telegram and email verified
-        },
-      })
-    }
 
     return NextResponse.json({
       success: true,

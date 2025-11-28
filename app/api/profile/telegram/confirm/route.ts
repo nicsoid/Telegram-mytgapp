@@ -27,13 +27,7 @@ export async function POST(request: Request) {
         telegramVerifiedAt: true,
         telegramId: true,
         telegramUsername: true,
-        publisher: {
-          select: {
-            id: true,
-            telegramVerified: true,
-            emailVerified: true,
-          },
-        },
+        emailVerified: true,
       },
     })
 
@@ -77,15 +71,15 @@ export async function POST(request: Request) {
         data: updates,
       })
 
-      if (user.publisher) {
-        await tx.publisher.update({
-          where: { id: user.publisher.id },
-          data: {
-            telegramVerified: true,
-            isVerified: user.publisher.emailVerified,
-          },
-        })
-      }
+      // Update user verification status directly
+      const isFullyVerified = user.emailVerified !== null
+      await tx.user.update({
+        where: { id: session.user.id },
+        data: {
+          telegramVerified: true,
+          isVerified: isFullyVerified,
+        },
+      })
     })
 
     return NextResponse.json({ success: true, verifiedAt: updates.telegramVerifiedAt.toISOString() })

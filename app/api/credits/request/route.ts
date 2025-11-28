@@ -6,7 +6,8 @@ import { z } from "zod"
 const requestSchema = z.object({
   amount: z.number().int().min(1).max(10000),
   reason: z.string().optional(),
-  publisherId: z.string(), // Required: users can only request from publishers
+  groupOwnerId: z.string(), // Required: users request from group owners
+  groupId: z.string().optional(), // Optional: specific group the credits are for
 })
 
 export async function POST(request: NextRequest) {
@@ -16,21 +17,36 @@ export async function POST(request: NextRequest) {
   }
 
   const body = await request.json()
-  const { amount, reason, publisherId } = requestSchema.parse(body)
+  const { amount, reason, groupOwnerId, groupId } = requestSchema.parse(body)
 
-  // Verify publisher exists
-  const publisher = await prisma.publisher.findUnique({
-    where: { id: publisherId },
+  // Verify group owner exists
+  const groupOwner = await prisma.user.findUnique({
+    where: { id: groupOwnerId },
   })
 
-  if (!publisher) {
-    return NextResponse.json({ error: "Publisher not found" }, { status: 404 })
+  if (!groupOwner) {
+    return NextResponse.json({ error: "Group owner not found" }, { status: 404 })
+  }
+
+  // If groupId provided, verify it belongs to the owner
+  if (groupId) {
+    const group = await prisma.telegramGroup.findFirst({
+      where: {
+        id: groupId,
+        userId: groupOwnerId,
+      },
+    })
+
+    if (!group) {
+      return NextResponse.json({ error: "Group not found or doesn't belong to owner" }, { status: 404 })
+    }
   }
 
   const creditRequest = await prisma.creditRequest.create({
     data: {
       userId: session.user.id,
-      publisherId: publisherId, // Required - users can only request from publishers
+      groupOwnerId,
+      groupId: groupId || null,
       amount,
       reason: reason || null,
       status: "PENDING",
@@ -40,6 +56,6 @@ export async function POST(request: NextRequest) {
   return NextResponse.json({
     success: true,
     request: creditRequest,
-    message: "Credit request submitted to publisher",
+    message: "Credit request submitted to group owner",
   })
 }

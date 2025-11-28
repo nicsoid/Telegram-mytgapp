@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from "next/server"
-import { requirePublisherSession } from "@/lib/admin"
+import { requireActiveSubscription } from "@/lib/admin"
 import { prisma } from "@/lib/prisma"
 
 export async function GET(request: NextRequest) {
-  const guard = await requirePublisherSession()
+  const guard = await requireActiveSubscription()
   if ("response" in guard) return guard.response
 
   const { searchParams } = new URL(request.url)
@@ -15,7 +15,7 @@ export async function GET(request: NextRequest) {
   const [requests, total] = await Promise.all([
     prisma.creditRequest.findMany({
       where: {
-        publisherId: guard.publisher.id,
+        groupOwnerId: guard.user.id,
         status,
       },
       skip,
@@ -35,7 +35,7 @@ export async function GET(request: NextRequest) {
     }),
     prisma.creditRequest.count({
       where: {
-        publisherId: guard.publisher.id,
+        groupOwnerId: guard.user.id,
         status,
       },
     }),

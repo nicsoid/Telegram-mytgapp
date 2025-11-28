@@ -61,8 +61,11 @@ export default function AppPage() {
     }
   }
 
-  const handleRequestCredits = async (amount: number, reason?: string) => {
+  const handleRequestCredits = async (amount: number, reason?: string, groupOwnerId?: string, groupId?: string) => {
     try {
+      if (!groupOwnerId) {
+        throw new Error("Please select a group owner")
+      }
       const res = await fetch("/api/credits/request", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -70,6 +73,8 @@ export default function AppPage() {
         body: JSON.stringify({
           amount,
           reason,
+          groupOwnerId,
+          groupId,
         }),
       })
 

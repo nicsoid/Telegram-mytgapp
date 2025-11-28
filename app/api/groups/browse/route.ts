@@ -16,16 +16,11 @@ export async function GET(request: NextRequest) {
       isActive: true,
     },
     include: {
-      publisher: {
+      user: {
         select: {
           id: true,
-          user: {
-            select: {
-              id: true,
-              name: true,
-              telegramUsername: true,
-            },
-          },
+          name: true,
+          telegramUsername: true,
         },
       },
     },

@@ -5,7 +5,7 @@ import { useState, useEffect } from "react"
 interface CreditRequestModalProps {
   isOpen: boolean
   onClose: () => void
-  onSubmit: (amount: number, reason?: string, publisherId?: string) => Promise<void>
+  onSubmit: (amount: number, reason?: string, groupOwnerId?: string, groupId?: string) => Promise<void>
   currentCredits?: number
 }
 
@@ -17,9 +17,10 @@ export default function CreditRequestModal({
 }: CreditRequestModalProps) {
   const [amount, setAmount] = useState("")
   const [reason, setReason] = useState("")
-  const [publisherId, setPublisherId] = useState("")
-  const [publishers, setPublishers] = useState<any[]>([])
-  const [loadingPublishers, setLoadingPublishers] = useState(false)
+  const [groupOwnerId, setGroupOwnerId] = useState("")
+  const [groupId, setGroupId] = useState("")
+  const [groupOwners, setGroupOwners] = useState<any[]>([])
+  const [loadingGroupOwners, setLoadingGroupOwners] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -27,40 +28,46 @@ export default function CreditRequestModal({
     if (isOpen) {
       setAmount("")
       setReason("")
-      setPublisherId("")
+      setGroupOwnerId("")
+      setGroupId("")
       setError(null)
-      fetchPublishers()
+      fetchGroupOwners()
     }
   }, [isOpen])
 
-  const fetchPublishers = async () => {
-    setLoadingPublishers(true)
+  const fetchGroupOwners = async () => {
+    setLoadingGroupOwners(true)
     try {
       const res = await fetch("/api/groups/browse", { credentials: "include" })
       if (res.ok) {
         const data = await res.json()
-        // Get unique publishers from groups (using publisher.id)
-        const publisherMap = new Map()
+        // Get unique group owners from groups (using user.id)
+        const ownerMap = new Map()
         data.groups?.forEach((group: any) => {
-          if (group.publisher?.id) {
-            const pubId = group.publisher.id
-            if (!publisherMap.has(pubId)) {
-              publisherMap.set(pubId, {
-                id: pubId,
-                name: group.publisher.user?.name || group.publisher.user?.telegramUsername || "Unknown Publisher",
+          if (group.user?.id) {
+            const ownerId = group.user.id
+            if (!ownerMap.has(ownerId)) {
+              ownerMap.set(ownerId, {
+                id: ownerId,
+                name: group.user?.name || group.user?.telegramUsername || "Unknown Owner",
                 groups: [group],
               })
             } else {
-              publisherMap.get(pubId).groups.push(group)
+              ownerMap.get(ownerId).groups.push(group)
             }
           }
         })
-        setPublishers(Array.from(publisherMap.values()))
+        setGroupOwners(Array.from(ownerMap.values()))
+        // Auto-select first owner if available
+        const owners = Array.from(ownerMap.values())
+        if (owners.length > 0) {
+          setGroupOwnerId(owners[0].id)
+        }
       }
     } catch (error) {
-      console.error("Failed to fetch publishers", error)
+      console.error("Failed to fetch group owners", error)
     } finally {
-      setLoadingPublishers(false)
+      setLoadingGroupOwners(false)
     }
   }
 
@@ -85,14 +92,14 @@ export default function CreditRequestModal({
       return
     }
 
-    if (!publisherId) {
-      setError("Please select a publisher to request credits from")
+    if (!groupOwnerId) {
+      setError("Please select a group owner to request credits from")
       return
     }
 
     setSubmitting(true)
     try {
-      await onSubmit(amountNum, reason.trim() || undefined, publisherId)
+      await onSubmit(amountNum, reason.trim() || undefined, groupOwnerId, groupId || undefined)
       onClose()
     } catch (err: any) {
       setError(err.message || "Failed to submit credit request")
@@ -118,7 +125,7 @@ export default function CreditRequestModal({
           <div>
             <h2 className="text-xl font-bold text-gray-900">Request Credits</h2>
             <p className="mt-1 text-sm text-gray-500">
-              Request credits from a publisher to post ads in their groups
+              Request credits from a group owner to post ads in their groups
             </p>
           </div>
           <button
@@ -159,36 +166,63 @@ export default function CreditRequestModal({
 
           <div>
             <label className="block text-sm font-semibold text-gray-700 mb-2">
-              Select Publisher <span className="text-red-500">*</span>
+              Select Group Owner <span className="text-red-500">*</span>
             </label>
-            {loadingPublishers ? (
+            {loadingGroupOwners ? (
               <div className="rounded-lg border border-gray-300 bg-gray-50 px-4 py-3 text-sm text-gray-500">
-                Loading publishers...
+                Loading group owners...
               </div>
-            ) : publishers.length === 0 ? (
+            ) : groupOwners.length === 0 ? (
               <div className="rounded-lg border border-yellow-300 bg-yellow-50 px-4 py-3 text-sm text-yellow-700">
-                No publishers available. Publishers need to add groups first.
+                No group owners available. Users need to add groups first.
               </div>
             ) : (
               <select
-                value={publisherId}
+                value={groupOwnerId}
                 onChange={(e) => {
-                  setPublisherId(e.target.value)
+                  setGroupOwnerId(e.target.value)
+                  setGroupId("") // Reset group selection when owner changes
                   setError(null)
                 }}
                 className="w-full rounded-lg border border-gray-300 px-4 py-3 text-sm transition-all focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
                 required
                 disabled={submitting}
               >
-                <option value="">Select a publisher...</option>
-                {publishers.map((publisher) => (
-                  <option key={publisher.id} value={publisher.id}>
-                    {publisher.name} ({publisher.groups.length} group{publisher.groups.length !== 1 ? 's' : ''})
+                <option value="">Select a group owner...</option>
+                {groupOwners.map((owner) => (
+                  <option key={owner.id} value={owner.id}>
+                    {owner.name} ({owner.groups.length} group{owner.groups.length !== 1 ? 's' : ''})
                   </option>
                 ))}
               </select>
             )}
           </div>
+
+          {groupOwnerId && (
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">
+                Select Group (Optional)
+              </label>
+              <select
+                value={groupId}
+                onChange={(e) => {
+                  setGroupId(e.target.value)
+                  setError(null)
+                }}
+                className="w-full rounded-lg border border-gray-300 px-4 py-3 text-sm transition-all focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
+                disabled={submitting}
+              >
+                <option value="">All groups</option>
+                {groupOwners
+                  .find((o) => o.id === groupOwnerId)
+                  ?.groups.map((group: any) => (
+                    <option key={group.id} value={group.id}>
+                      {group.name} ({group.pricePerPost} credits/post)
+                    </option>
+                  ))}
+              </select>
+            </div>
+          )}
 
           <div>
             <label className="block text-sm font-semibold text-gray-700 mb-2">
@@ -284,7 +318,7 @@ export default function CreditRequestModal({
         {/* Footer Info */}
         <div className="px-6 py-4 bg-gray-50 border-t border-gray-200 rounded-b-2xl">
           <p className="text-xs text-gray-500 text-center">
-            Your request will be reviewed by the publisher. You'll be notified once it's processed.
+            Your request will be reviewed by the group owner. You'll be notified once it's processed.
           </p>
         </div>
       </div>

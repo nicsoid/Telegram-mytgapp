@@ -16,14 +16,14 @@ export default function LandingPage() {
   const appPath =
     session?.user?.role === "ADMIN"
       ? "/admin"
-      : session?.user?.role === "PUBLISHER"
+      : false // All users go to /app now
         ? "/dashboard"
         : "/app"
 
   const appLabel =
     session?.user?.role === "ADMIN"
       ? "Open Admin"
-      : session?.user?.role === "PUBLISHER"
+      : false // All users go to /app now
         ? "Open Dashboard"
         : "Open App"
 

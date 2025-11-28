@@ -31,15 +31,17 @@ export async function GET(request: NextRequest) {
       skip,
       take: limit,
       orderBy: { createdAt: "desc" },
-      include: {
-        publisher: {
-          select: {
-            id: true,
-            subscriptionTier: true,
-            subscriptionStatus: true,
-            isVerified: true,
-          },
-        },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        telegramUsername: true,
+        role: true,
+        credits: true,
+        subscriptionTier: true,
+        subscriptionStatus: true,
+        isVerified: true,
+        createdAt: true,
         _count: {
           select: {
             creditTransactions: true,

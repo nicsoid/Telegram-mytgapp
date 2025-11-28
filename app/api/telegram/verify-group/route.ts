@@ -21,11 +21,7 @@ export async function POST(request: NextRequest) {
         verificationCode: code.toUpperCase(),
       },
       include: {
-        publisher: {
-          include: {
-            user: true,
-          },
-        },
+        user: true,
       },
     })
 
@@ -36,8 +32,8 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Verify user is the publisher
-    if (group.publisher.userId !== userId) {
+    // Verify user is the group owner
+    if (group.userId !== userId) {
       return NextResponse.json(
         { error: "You are not the owner of this group" },
         { status: 403 }

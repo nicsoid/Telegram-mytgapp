@@ -42,45 +42,32 @@ export async function POST(request: NextRequest) {
         name: `${telegramUser.first_name} ${telegramUser.last_name || ''}`.trim() || session.user.name,
         image: telegramUser.photo_url || session.user.image,
         telegramVerifiedAt: new Date(),
-        role: "PUBLISHER",
+        role: "USER", // All users are USER now, no separate PUBLISHER role
       },
     })
 
-    // Create or update publisher profile
-    let publisher = await prisma.publisher.findUnique({
-      where: { userId: user.id },
+    // Update user with subscription fields (if not already set)
+    const updatedUser = await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        telegramVerified: true,
+        subscriptionTier: user.subscriptionTier || "FREE",
+        subscriptionStatus: user.subscriptionStatus || "ACTIVE",
+        freePostsUsed: user.freePostsUsed || 0,
+        freePostsLimit: user.freePostsLimit || 3, // 3 free posts on signup
+        // isVerified will be true when email is also verified
+      },
     })
-
-    if (!publisher) {
-      publisher = await prisma.publisher.create({
-        data: {
-          userId: user.id,
-          subscriptionTier: "FREE",
-          subscriptionStatus: "ACTIVE",
-          telegramVerified: true,
-          isVerified: false, // Will be true when email is also verified
-          freePostsUsed: 0,
-          freePostsLimit: 3, // 3 free posts on signup
-        },
-      })
-    } else {
-      publisher = await prisma.publisher.update({
-        where: { id: publisher.id },
-        data: {
-          telegramVerified: true,
-        },
-      })
-    }
 
     return NextResponse.json({
       success: true,
       user: {
-        id: user.id,
-        telegramId: user.telegramId,
-        telegramUsername: user.telegramUsername,
-        telegramVerified: publisher.telegramVerified,
-        emailVerified: publisher.emailVerified,
-        isVerified: publisher.isVerified,
+        id: updatedUser.id,
+        telegramId: updatedUser.telegramId,
+        telegramUsername: updatedUser.telegramUsername,
+        telegramVerified: updatedUser.telegramVerified,
+        emailVerified: updatedUser.emailVerified,
+        isVerified: updatedUser.isVerified,
       },
     })
   } catch (error) {

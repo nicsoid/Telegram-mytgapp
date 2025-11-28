@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { requirePublisherSession } from "@/lib/admin"
+import { requireActiveSubscription } from "@/lib/admin"
 import { prisma } from "@/lib/prisma"
 import { z } from "zod"
 
@@ -13,28 +13,28 @@ export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ userId: string }> }
 ) {
-  const guard = await requirePublisherSession()
+  const guard = await requireActiveSubscription()
   if ("response" in guard) return guard.response
 
   const { userId } = await params
   const body = await request.json()
   const { amount, groupId, notes } = grantCreditsSchema.parse(body)
 
-  // Verify user is in publisher's managed list
-  const managedUser = await prisma.publisherManagedUser.findUnique({
-    where: {
-      publisherId_userId: {
-        publisherId: guard.publisher.id,
-        userId,
+  // Verify group belongs to user if groupId provided
+  if (groupId) {
+    const group = await prisma.telegramGroup.findFirst({
+      where: {
+        id: groupId,
+        userId: guard.user.id,
       },
-    },
-  })
+    })
 
-  if (!managedUser) {
-    return NextResponse.json(
-      { error: "User is not in your managed list" },
-      { status: 403 }
-    )
+    if (!group) {
+      return NextResponse.json(
+        { error: "Group not found or you don't own it" },
+        { status: 403 }
+      )
+    }
   }
 
   await prisma.$transaction(async (tx) => {
@@ -53,20 +53,7 @@ export async function POST(
         amount,
         type: "PUBLISHER_GRANT",
         relatedGroupId: groupId || null,
-        description: notes || `Credits granted by publisher ${guard.publisher.id}`,
-      },
-    })
-
-    // Update managed user record
-    await tx.publisherManagedUser.update({
-      where: {
-        publisherId_userId: {
-          publisherId: guard.publisher.id,
-          userId,
-        },
-      },
-      data: {
-        creditsAdded: { increment: amount },
+        description: notes || `Credits granted by group owner`,
       },
     })
   })

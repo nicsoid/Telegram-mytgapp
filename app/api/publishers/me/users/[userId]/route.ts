@@ -1,24 +1,19 @@
 import { NextRequest, NextResponse } from "next/server"
-import { requirePublisherSession } from "@/lib/admin"
+import { requireActiveSubscription } from "@/lib/admin"
 import { prisma } from "@/lib/prisma"
 
 export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ userId: string }> }
 ) {
-  const guard = await requirePublisherSession()
+  const guard = await requireActiveSubscription()
   if ("response" in guard) return guard.response
 
   const { userId } = await params
 
-  await prisma.publisherManagedUser.delete({
-    where: {
-      publisherId_userId: {
-        publisherId: guard.publisher.id,
-        userId,
-      },
-    },
-  })
+  // No managed users anymore - users are automatically tracked via credit requests
+  // This endpoint is kept for backward compatibility but does nothing
+  return NextResponse.json({ success: true, message: "User management removed - users are tracked via credit requests" })
 
   return NextResponse.json({ success: true, message: "User removed from managed list" })
 }

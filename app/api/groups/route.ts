@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { requirePublisherSession } from "@/lib/admin"
+import { requireActiveSubscription } from "@/lib/admin"
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { z } from "zod"
@@ -16,11 +16,11 @@ const createGroupSchema = z.object({
 })
 
 export async function GET(request: NextRequest) {
-  const guard = await requirePublisherSession()
+  const guard = await requireActiveSubscription()
   if ("response" in guard) return guard.response
 
   const groups = await prisma.telegramGroup.findMany({
-    where: { publisherId: guard.publisher.id },
+    where: { userId: guard.user.id },
     orderBy: { createdAt: "desc" },
   })
 
@@ -28,56 +28,23 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  const guard = await requirePublisherSession()
+  const guard = await requireActiveSubscription()
   if ("response" in guard) {
-    // If user is not a publisher, check if they're verified and can become a publisher
-    const session = await auth()
-    if (session?.user && session.user.role === "USER") {
-      // Check if user has verified Telegram
-      const user = await prisma.user.findUnique({
-        where: { id: session.user.id },
-        include: { publisher: true },
-      })
-      
-      if (!user?.telegramVerifiedAt) {
-        return NextResponse.json(
-          { error: "Please verify your Telegram account before adding groups" },
-          { status: 403 }
-        )
-      }
-      
-      // Create publisher profile if it doesn't exist
-      if (!user.publisher) {
-        await prisma.publisher.create({
-          data: {
-            userId: user.id,
-            telegramVerified: true,
-            isVerified: true, // Auto-verify if Telegram is verified
-          },
-        })
-      }
-      
-      // Retry getting publisher session
-      const retryGuard = await requirePublisherSession()
-      if ("response" in retryGuard) return retryGuard.response
-      return handleGroupCreation(retryGuard.publisher, request)
-    }
     return guard.response
   }
 
-  // Check if publisher is verified
-  if (!guard.publisher.isVerified && !guard.publisher.telegramVerified) {
+  // Check if user has verified Telegram
+  if (!guard.user.telegramVerifiedAt && !guard.user.telegramVerified) {
     return NextResponse.json(
       { error: "Please verify your Telegram account before adding groups" },
       { status: 403 }
     )
   }
 
-  return handleGroupCreation(guard.publisher, request)
+  return handleGroupCreation(guard.user, request)
 }
 
-async function handleGroupCreation(publisher: any, request: NextRequest) {
-
+async function handleGroupCreation(user: any, request: NextRequest) {
   const body = await request.json()
   const data = createGroupSchema.parse(body)
 
@@ -109,7 +76,7 @@ async function handleGroupCreation(publisher: any, request: NextRequest) {
   const existingByUsername = await prisma.telegramGroup.findFirst({
     where: {
       username: cleanUsername,
-      publisherId: publisher.id,
+      userId: user.id,
     },
   })
 
@@ -142,7 +109,7 @@ async function handleGroupCreation(publisher: any, request: NextRequest) {
 
   const group = await prisma.telegramGroup.create({
     data: {
-      publisherId: publisher.id,
+      userId: user.id,
       telegramChatId: chatInfo?.chatId || null, // Set if available, otherwise will be set during verification
       name: groupName,
       username: cleanUsername,

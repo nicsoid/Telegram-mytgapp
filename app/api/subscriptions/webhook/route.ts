@@ -58,16 +58,16 @@ export async function POST(request: NextRequest) {
             })
           }
         } else if (metadata?.type === "subscription") {
-          const publisherId = metadata.publisherId
+          const userId = metadata.userId
           const tier = metadata.tier
 
-          if (publisherId && tier && session.subscription) {
+          if (userId && tier && session.subscription) {
             // Fetch subscription details from Stripe
             const subscription = (await stripe.subscriptions.retrieve(session.subscription as string)) as any
 
-            // Update publisher subscription tier
-            await prisma.publisher.update({
-              where: { id: publisherId },
+            // Update user subscription tier
+            await prisma.user.update({
+              where: { id: userId },
               data: {
                 subscriptionTier: tier as any,
                 subscriptionStatus: subscription.status === "active" ? "ACTIVE" : "CANCELED",
@@ -80,13 +80,13 @@ export async function POST(request: NextRequest) {
             // Create or update subscription record
             await prisma.subscription.upsert({
               where: {
-                publisherId_tier: {
-                  publisherId,
+                userId_tier: {
+                  userId,
                   tier: tier as any,
                 },
               },
               create: {
-                publisherId,
+                userId,
                 tier: tier as any,
                 status: subscription.status === "active" ? "ACTIVE" : "CANCELED",
                 stripeSubscriptionId: subscription.id,

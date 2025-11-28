@@ -14,12 +14,9 @@ type User = {
   role: string
   credits: number
   createdAt: string
-  publisher?: {
-    id: string
-    subscriptionTier: string
-    subscriptionStatus: string
-    isVerified: boolean
-  } | null
+  subscriptionTier: string
+  subscriptionStatus: string
+  isVerified: boolean
   _count: {
     creditTransactions: number
     advertiserPosts: number
@@ -253,7 +250,10 @@ export default function AdminDashboard() {
                       {users.map((user) => (
                         <tr key={user.id} className="hover:bg-gray-50 transition-colors">
                           <td className="whitespace-nowrap px-6 py-4">
-                            <div className="flex items-center space-x-3">
+                            <Link
+                              href={`/admin/users/${user.id}`}
+                              className="flex items-center space-x-3 hover:opacity-80 transition-opacity"
+                            >
                               <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-gradient-to-br from-blue-500 to-indigo-500 text-white font-bold text-sm">
                                 {(user.name || user.email || "U")[0].toUpperCase()}
                               </div>
@@ -263,13 +263,13 @@ export default function AdminDashboard() {
                                   {user.email || user.telegramUsername || user.id}
                                 </div>
                               </div>
-                            </div>
+                            </Link>
                           </td>
                           <td className="whitespace-nowrap px-6 py-4">
                             <span className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${
                               user.role === "ADMIN" 
                                 ? "bg-purple-100 text-purple-800"
-                                : user.role === "PUBLISHER"
+                                : false // No PUBLISHER role anymore
                                   ? "bg-blue-100 text-blue-800"
                                   : "bg-gray-100 text-gray-800"
                             }`}>
@@ -281,18 +281,14 @@ export default function AdminDashboard() {
                             <div className="text-xs text-gray-500">credits</div>
                           </td>
                           <td className="whitespace-nowrap px-6 py-4 text-sm">
-                            {user.publisher ? (
-                              <div className="space-y-1">
-                                <div className="font-medium text-gray-900">{user.publisher.subscriptionTier.replace("_", " ")}</div>
-                                <div className={`text-xs ${
-                                  user.publisher.isVerified ? "text-green-600" : "text-gray-500"
-                                }`}>
-                                  {user.publisher.isVerified ? "✓ Verified" : "✗ Not Verified"}
-                                </div>
+                            <div className="space-y-1">
+                              <div className="font-medium text-gray-900">{user.subscriptionTier.replace("_", " ")}</div>
+                              <div className={`text-xs ${
+                                user.isVerified ? "text-green-600" : "text-gray-500"
+                              }`}>
+                                {user.isVerified ? "✓ Verified" : "✗ Not Verified"}
                               </div>
-                            ) : (
-                              <span className="text-gray-400">—</span>
-                            )}
+                            </div>
                           </td>
                           <td className="whitespace-nowrap px-6 py-4 text-sm font-medium">
                             <span className="text-xs text-gray-400">Publishers grant credits</span>
