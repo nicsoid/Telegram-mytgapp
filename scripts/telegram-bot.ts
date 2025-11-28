@@ -25,18 +25,12 @@ bot.command("verify", async (ctx) => {
     const group = await prisma.telegramGroup.findFirst({
       where: {
         verificationCode: code.toUpperCase(),
-        publisher: {
-          user: {
-            telegramId: userId, // Ensure it's the correct publisher
-          },
+        user: {
+          telegramId: userId, // Ensure it's the correct user
         },
       },
       include: {
-        publisher: {
-          include: {
-            user: true,
-          },
-        },
+        user: true,
       },
     })
 
@@ -45,9 +39,9 @@ bot.command("verify", async (ctx) => {
       return
     }
 
-    // Verify user is the publisher
-    if (group.publisher.user.telegramId !== userId) {
-      await ctx.reply("❌ You are not the owner of this group in MyTgApp.\n\nOnly the publisher who added this group can verify it.")
+    // Verify user is the group owner
+    if (group.user.telegramId !== userId) {
+      await ctx.reply("❌ You are not the owner of this group in MyTgApp.\n\nOnly the user who added this group can verify it.")
       return
     }
 
@@ -58,8 +52,10 @@ bot.command("verify", async (ctx) => {
       return
     }
 
-    // Verify bot is admin
-    const botIsAdmin = await isChatAdmin(chatId, botToken.split(":")[0]) // Bot user ID from token
+    // Verify bot is admin - get bot's user ID from the bot instance
+    const botInfo = await ctx.telegram.getMe()
+    const botUserId = botInfo.id.toString()
+    const botIsAdmin = await isChatAdmin(chatId, botUserId)
     if (!botIsAdmin) {
       await ctx.reply("❌ The bot must be an admin in this group.\n\nPlease add the bot as an admin and try again.")
       return

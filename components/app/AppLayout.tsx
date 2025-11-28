@@ -30,7 +30,10 @@ export default function AppLayout({ children }: AppLayoutProps) {
     ...(session?.user?.role === "ADMIN" ? [{ name: "Admin", href: "/admin", icon: "🔧" }] : []),
   ]
 
-  const isActive = (href: string) => pathname === href
+  const isActive = (href: string) => {
+    // Match exact path or if pathname starts with href (for nested routes)
+    return pathname === href || pathname?.startsWith(href + '/')
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-gray-50">

@@ -238,8 +238,8 @@ export default function GroupsManager() {
                 key={group.id}
                 className="rounded-lg border border-gray-200 bg-white p-6 shadow"
               >
-                <div className="flex items-start justify-between">
-                  <div className="flex-1">
+                <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+                  <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
                       <h3 className="text-lg font-semibold text-gray-900">{group.name}</h3>
                       {group.isVerified ? (
@@ -282,15 +282,15 @@ export default function GroupsManager() {
                       </div>
                     </div>
                   </div>
-                  <div className="ml-4 flex flex-col gap-2">
+                  <div className="flex flex-col gap-2 sm:ml-4 sm:flex-shrink-0">
                     <Link
                       href="/dashboard/groups"
-                      className="rounded bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700"
+                      className="rounded bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 text-center"
                     >
                       Manage
                     </Link>
                     {!group.isVerified && group.verificationCode && (
-                      <div className="mt-2 rounded bg-gray-100 p-2 text-center max-w-[120px]">
+                      <div className="rounded bg-gray-100 p-2 text-center w-full sm:max-w-[120px]">
                         <p className="text-xs text-gray-600">Code:</p>
                         <p className="font-mono text-xs font-bold break-all">{group.verificationCode}</p>
                       </div>
