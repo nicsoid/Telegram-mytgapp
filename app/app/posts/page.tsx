@@ -9,6 +9,7 @@ type TelegramGroup = {
   name: string
   isVerified: boolean
   pricePerPost: number
+  advertiserMessage: string | null
 }
 
 type TelegramPost = {
@@ -356,7 +357,7 @@ export default function AppPostsPage() {
                 </option>
                 {verifiedGroups.map((group) => (
                   <option key={group.id} value={group.id}>
-                    {group.name} {group.pricePerPost > 0 && `(€${group.pricePerPost}/post)`}
+                    {group.name} {group.pricePerPost > 0 && `(${group.pricePerPost} credits/post)`}
                   </option>
                 ))}
               </select>
@@ -365,6 +366,15 @@ export default function AppPostsPage() {
                   ⚠️ Verify at least one group before scheduling posts
                 </p>
               )}
+              {form.groupId && (() => {
+                const selectedGroup = verifiedGroups.find(g => g.id === form.groupId)
+                return selectedGroup?.advertiserMessage ? (
+                  <div className="mt-3 rounded-lg border border-blue-200 bg-blue-50 p-3">
+                    <p className="text-xs font-semibold text-blue-900 mb-1">Message from Group Owner:</p>
+                    <p className="text-sm text-blue-800 whitespace-pre-wrap">{selectedGroup.advertiserMessage}</p>
+                  </div>
+                ) : null
+              })()}
             </div>
 
             <div>

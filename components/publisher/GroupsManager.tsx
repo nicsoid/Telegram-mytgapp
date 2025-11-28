@@ -14,6 +14,7 @@ type Group = {
   verificationCode: string | null
   pricePerPost: number
   freePostIntervalDays: number
+  advertiserMessage: string | null
   isActive: boolean
   totalPostsScheduled: number
   totalPostsSent: number
@@ -36,6 +37,13 @@ export default function GroupsManager() {
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
   const [verificationCode, setVerificationCode] = useState<string | null>(null)
+  const [editingGroup, setEditingGroup] = useState<Group | null>(null)
+  const [editFormData, setEditFormData] = useState({
+    pricePerPost: "",
+    freePostIntervalDays: "",
+    advertiserMessage: "",
+    isActive: true,
+  })
 
   useEffect(() => {
     fetchGroups()
@@ -53,6 +61,53 @@ export default function GroupsManager() {
       console.error("Failed to fetch groups", error)
     } finally {
       setLoading(false)
+    }
+  }
+
+  const handleEditClick = (group: Group) => {
+    setEditingGroup(group)
+    setEditFormData({
+      pricePerPost: group.pricePerPost.toString(),
+      freePostIntervalDays: group.freePostIntervalDays.toString(),
+      advertiserMessage: group.advertiserMessage || "",
+      isActive: group.isActive,
+    })
+  }
+
+  const handleEditSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!editingGroup) return
+
+    setSubmitting(true)
+    setError(null)
+    try {
+      const res = await fetch(`/api/groups/${editingGroup.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          pricePerPost: parseInt(editFormData.pricePerPost),
+          freePostIntervalDays: parseInt(editFormData.freePostIntervalDays),
+          advertiserMessage: editFormData.advertiserMessage || null,
+          isActive: editFormData.isActive,
+        }),
+      })
+
+      const data = await res.json()
+
+      if (!res.ok) {
+        setError(data.error || "Failed to update group")
+        return
+      }
+
+      setSuccess("Group updated successfully!")
+      setEditingGroup(null)
+      fetchGroups()
+      setTimeout(() => setSuccess(null), 5000)
+    } catch (error) {
+      setError("An error occurred. Please try again.")
+    } finally {
+      setSubmitting(false)
     }
   }
 
@@ -284,6 +339,12 @@ export default function GroupsManager() {
                     </div>
                   </div>
                   <div className="flex flex-col gap-2 sm:ml-4 sm:flex-shrink-0">
+                    <button
+                      onClick={() => handleEditClick(group)}
+                      className="rounded bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 text-center"
+                    >
+                      Edit
+                    </button>
                     {!group.isVerified && group.verificationCode && (
                       <div className="rounded bg-gray-100 p-2 text-center w-full sm:max-w-[120px]">
                         <p className="text-xs text-gray-600">Code:</p>
@@ -296,6 +357,103 @@ export default function GroupsManager() {
             ))}
           </div>
         )}
+
+      {/* Edit Group Modal */}
+      {editingGroup && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4">
+          <div className="w-full max-w-2xl rounded-lg border border-gray-200 bg-white p-6 shadow-xl max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-semibold text-gray-900">Edit Group: {editingGroup.name}</h2>
+              <button
+                onClick={() => setEditingGroup(null)}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                ✕
+              </button>
+            </div>
+            <form onSubmit={handleEditSubmit} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Price per Post (credits)
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  required
+                  value={editFormData.pricePerPost}
+                  onChange={(e) => setEditFormData({ ...editFormData, pricePerPost: e.target.value })}
+                  className="w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-blue-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Free Post Interval (days)
+                </label>
+                <input
+                  type="number"
+                  min="1"
+                  max="365"
+                  required
+                  value={editFormData.freePostIntervalDays}
+                  onChange={(e) => setEditFormData({ ...editFormData, freePostIntervalDays: e.target.value })}
+                  className="w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-blue-500"
+                />
+                <p className="mt-1 text-xs text-gray-500">
+                  Days between free posts for group owner
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Message for Advertisers
+                </label>
+                <textarea
+                  value={editFormData.advertiserMessage}
+                  onChange={(e) => setEditFormData({ ...editFormData, advertiserMessage: e.target.value })}
+                  rows={4}
+                  maxLength={1000}
+                  className="w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-blue-500"
+                  placeholder="Optional message shown to advertisers when selecting this group..."
+                />
+                <p className="mt-1 text-xs text-gray-500">
+                  {editFormData.advertiserMessage.length}/1000 characters
+                </p>
+              </div>
+
+              <div className="flex items-center">
+                <input
+                  type="checkbox"
+                  id="isActive"
+                  checked={editFormData.isActive}
+                  onChange={(e) => setEditFormData({ ...editFormData, isActive: e.target.checked })}
+                  className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                />
+                <label htmlFor="isActive" className="ml-2 text-sm font-medium text-gray-700">
+                  Group is active (allow posts)
+                </label>
+              </div>
+
+              <div className="flex justify-end space-x-3 pt-4">
+                <button
+                  type="button"
+                  onClick={() => setEditingGroup(null)}
+                  className="rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={submitting}
+                  className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-blue-700 disabled:opacity-50"
+                >
+                  {submitting ? "Saving..." : "Save Changes"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

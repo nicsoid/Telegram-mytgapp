@@ -42,6 +42,7 @@ export async function GET(request: NextRequest) {
         credits: true,
         subscriptionTier: true,
         subscriptionStatus: true,
+        subscriptionExpiresAt: true,
         isVerified: true,
         createdAt: true,
         _count: {

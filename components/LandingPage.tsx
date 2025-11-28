@@ -4,7 +4,7 @@ import Link from "next/link"
 import { useSession, signOut } from "next-auth/react"
 
 export default function LandingPage() {
-  const { data: session } = useSession()
+  const { data: session, status } = useSession()
   const displayName = (() => {
     if (!session?.user) return "Member"
     const name = session.user.name
@@ -20,8 +20,13 @@ export default function LandingPage() {
     return name || email || "Member"
   })()
 
-  const handleSignOut = () => {
-    signOut({ callbackUrl: "/" })
+  const handleSignOut = async () => {
+    // Clear any Telegram widget data from localStorage
+    if (typeof window !== "undefined") {
+      localStorage.removeItem("telegram_widget_data")
+      localStorage.removeItem("telegram_auth_data")
+    }
+    await signOut({ callbackUrl: "/", redirect: true })
   }
 
   return (
@@ -36,7 +41,9 @@ export default function LandingPage() {
               </h1>
             </div>
             <div className="flex items-center space-x-3">
-              {session ? (
+              {status === "loading" ? (
+                <div className="text-sm text-gray-500">Loading...</div>
+              ) : session ? (
                 <>
                   <span className="hidden sm:block text-sm text-gray-600">
                     Signed in as <span className="font-medium text-gray-900">{displayName}</span>

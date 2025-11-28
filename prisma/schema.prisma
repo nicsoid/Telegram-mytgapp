@@ -149,6 +149,7 @@ model TelegramGroup {
   verifiedByBot        Boolean   @default(false) // Bot confirmed user is admin
   pricePerPost         Int       @default(1) // Price in credits per post
   freePostIntervalDays Int       @default(7) // Days between free posts
+  advertiserMessage    String?   @db.Text // Message shown to advertisers when selecting this group
   isActive             Boolean   @default(true)
   postingWindows       Json? // Time slots when posts can be scheduled
   totalPostsScheduled  Int       @default(0)

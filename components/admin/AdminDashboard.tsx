@@ -5,6 +5,7 @@ import { useSession } from "next-auth/react"
 import Link from "next/link"
 import GrantCreditsModal from "./GrantCreditsModal"
 import RejectRequestModal from "./RejectRequestModal"
+import ManageSubscriptionModal from "./ManageSubscriptionModal"
 
 type User = {
   id: string
@@ -16,6 +17,7 @@ type User = {
   createdAt: string
   subscriptionTier: string
   subscriptionStatus: string
+  subscriptionExpiresAt: string | null
   isVerified: boolean
   _count: {
     creditTransactions: number
@@ -56,6 +58,14 @@ export default function AdminDashboard() {
     requestId: "",
     userName: "",
     amount: 0,
+  })
+  const [subscriptionModal, setSubscriptionModal] = useState<{ isOpen: boolean; userId: string; userName: string; tier: string; status: string; expiresAt: string | null }>({
+    isOpen: false,
+    userId: "",
+    userName: "",
+    tier: "FREE",
+    status: "ACTIVE",
+    expiresAt: null,
   })
 
   useEffect(() => {
@@ -239,7 +249,7 @@ export default function AdminDashboard() {
                           Credits
                         </th>
                         <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-700">
-                          Publisher
+                          Subscription
                         </th>
                         <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-700">
                           Actions
@@ -284,14 +294,28 @@ export default function AdminDashboard() {
                             <div className="space-y-1">
                               <div className="font-medium text-gray-900">{user.subscriptionTier.replace("_", " ")}</div>
                               <div className={`text-xs ${
-                                user.isVerified ? "text-green-600" : "text-gray-500"
+                                user.subscriptionStatus === "ACTIVE" ? "text-green-600" : "text-gray-500"
                               }`}>
-                                {user.isVerified ? "✓ Verified" : "✗ Not Verified"}
+                                {user.subscriptionStatus}
                               </div>
                             </div>
                           </td>
                           <td className="whitespace-nowrap px-6 py-4 text-sm font-medium">
-                            <span className="text-xs text-gray-400">Publishers grant credits</span>
+                            <button
+                              onClick={() => {
+                                setSubscriptionModal({
+                                  isOpen: true,
+                                  userId: user.id,
+                                  userName: user.name || user.email || "User",
+                                  tier: user.subscriptionTier,
+                                  status: user.subscriptionStatus,
+                                  expiresAt: user.subscriptionExpiresAt,
+                                })
+                              }}
+                              className="text-blue-600 hover:text-blue-900 text-xs font-medium"
+                            >
+                              Manage Subscription
+                            </button>
                           </td>
                         </tr>
                       ))}
@@ -415,6 +439,28 @@ export default function AdminDashboard() {
           onSubmit={handleRejectRequest}
           userName={rejectModal.userName}
           amount={rejectModal.amount}
+        />
+        <ManageSubscriptionModal
+          isOpen={subscriptionModal.isOpen}
+          userId={subscriptionModal.userId}
+          userName={subscriptionModal.userName}
+          currentTier={subscriptionModal.tier as any}
+          currentStatus={subscriptionModal.status as any}
+          currentExpiresAt={subscriptionModal.expiresAt ? new Date(subscriptionModal.expiresAt) : null}
+          onClose={() => setSubscriptionModal({ isOpen: false, userId: "", userName: "", tier: "FREE", status: "ACTIVE", expiresAt: null })}
+          onUpdate={async (data) => {
+            const res = await fetch(`/api/admin/users/${subscriptionModal.userId}/subscription`, {
+              method: "PATCH",
+              headers: { "Content-Type": "application/json" },
+              credentials: "include",
+              body: JSON.stringify(data),
+            })
+            if (!res.ok) {
+              const error = await res.json()
+              throw new Error(error.error || "Failed to update subscription")
+            }
+            fetchUsers()
+          }}
         />
       </div>
     </div>

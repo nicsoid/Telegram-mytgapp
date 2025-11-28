@@ -95,7 +95,14 @@ export default function AppLayout({ children }: AppLayoutProps) {
                 <p className="text-sm font-medium text-gray-900">{displayName}</p>
               </div>
               <button
-                onClick={() => signOut({ callbackUrl: "/" })}
+                onClick={async () => {
+                  // Clear any Telegram widget data from localStorage
+                  if (typeof window !== "undefined") {
+                    localStorage.removeItem("telegram_widget_data")
+                    localStorage.removeItem("telegram_auth_data")
+                  }
+                  await signOut({ callbackUrl: "/", redirect: true })
+                }}
                 className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm transition-all hover:bg-gray-50 hover:shadow"
               >
                 Sign Out
