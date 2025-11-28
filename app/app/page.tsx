@@ -1,6 +1,6 @@
 "use client"
 
-import { useSession } from "next-auth/react"
+import { useSession, signOut } from "next-auth/react"
 import { useState, useEffect } from "react"
 import Link from "next/link"
 
@@ -70,14 +70,43 @@ export default function AppPage() {
     )
   }
 
+  const displayName =
+    session.user.name ||
+    session.user.telegramUsername ||
+    session.user.email ||
+    "Member"
+
   return (
     <div className="min-h-screen bg-gray-50">
-      <div className="bg-white shadow">
-        <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
-          <h1 className="text-3xl font-bold text-gray-900">My Account</h1>
-          <p className="mt-2 text-sm text-gray-600">Manage your credits and posts</p>
+      {/* Top Nav */}
+      <header className="bg-white border-b border-gray-200 shadow-sm">
+        <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-4 sm:px-6 lg:px-8">
+          <div>
+            <p className="text-xs text-gray-500">MyTgApp</p>
+            <h1 className="text-2xl font-semibold text-gray-900">Welcome, {displayName}</h1>
+          </div>
+          <nav className="flex items-center gap-3 text-sm">
+            <Link
+              href="/app"
+              className="rounded-full px-4 py-2 font-medium text-blue-600 hover:bg-blue-50"
+            >
+              Overview
+            </Link>
+            <Link
+              href="/app/posts"
+              className="rounded-full px-4 py-2 text-gray-600 hover:bg-gray-100"
+            >
+              Posts
+            </Link>
+            <button
+              onClick={() => signOut({ callbackUrl: "/" })}
+              className="rounded-full px-4 py-2 text-gray-500 hover:text-gray-900"
+            >
+              Log out
+            </button>
+          </nav>
         </div>
-      </div>
+      </header>
 
       <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
