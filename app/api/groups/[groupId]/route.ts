@@ -69,8 +69,6 @@ export async function PATCH(
       }
       throw error
     }
-
-    return NextResponse.json({ group: updatedGroup })
   } catch (error) {
     console.error("Error updating group:", error)
     if (error instanceof z.ZodError) {
