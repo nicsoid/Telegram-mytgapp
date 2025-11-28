@@ -147,7 +147,10 @@ export async function GET(request: NextRequest) {
     })()
     
     // Store a temporary auth token (we'll use a simple approach with user ID + timestamp hash)
-    const authToken = Buffer.from(`${user.id}:${Date.now()}`).toString('base64')
+    // Ensure user.id is a string and timestamp is a number
+    const userId = user.id.toString()
+    const timestamp = Date.now().toString()
+    const authToken = Buffer.from(`${userId}:${timestamp}`).toString('base64')
     
     // Store in a cookie or redirect with token
     const response = NextResponse.redirect(

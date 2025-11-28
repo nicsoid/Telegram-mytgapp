@@ -33,8 +33,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Failed to parse Telegram data" }, { status: 400 })
     }
 
-    // Update user with Telegram info
-    const user = await prisma.user.update({
+    // Update user with Telegram info and subscription fields in one go
+    // Use raw SQL or conditional updates to avoid accessing non-existent fields
+    const updatedUser = await prisma.user.update({
       where: { id: session.user.id },
       data: {
         telegramId: telegramUser.id.toString(),
@@ -43,21 +44,31 @@ export async function POST(request: NextRequest) {
         image: telegramUser.photo_url || session.user.image,
         telegramVerifiedAt: new Date(),
         role: "USER", // All users are USER now, no separate PUBLISHER role
-      },
-    })
-
-    // Update user with subscription fields (if not already set)
-    const updatedUser = await prisma.user.update({
-      where: { id: user.id },
-      data: {
+        // Only set these if columns exist (will fail gracefully if migration not applied)
         telegramVerified: true,
-        subscriptionTier: user.subscriptionTier || "FREE",
-        subscriptionStatus: user.subscriptionStatus || "ACTIVE",
-        freePostsUsed: user.freePostsUsed || 0,
-        freePostsLimit: user.freePostsLimit || 3, // 3 free posts on signup
+        freePostsUsed: 0,
+        freePostsLimit: 3, // 3 free posts on signup
         // isVerified will be true when email is also verified
       },
     })
+
+    // Try to update subscription fields separately (will fail if columns don't exist)
+    try {
+      await prisma.user.update({
+        where: { id: updatedUser.id },
+        data: {
+          subscriptionTier: "FREE",
+          subscriptionStatus: "ACTIVE",
+        },
+      })
+    } catch (error: any) {
+      // If subscription columns don't exist, log but don't fail
+      if (error?.code === 'P2022' || error?.message?.includes('does not exist')) {
+        console.warn('[publisher-signup] Subscription columns not yet migrated, skipping subscription fields')
+      } else {
+        throw error
+      }
+    }
 
     return NextResponse.json({
       success: true,

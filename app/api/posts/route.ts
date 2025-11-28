@@ -73,28 +73,67 @@ export async function POST(request: NextRequest) {
     createPostSchema.parse(body)
 
   // Verify group exists and get owner
-  const group = await prisma.telegramGroup.findUnique({
-    where: { id: groupId },
-    include: {
-      user: {
-        select: {
-          id: true,
-          freePostsUsed: true,
-          freePostsLimit: true,
-          subscriptionTier: true,
-          subscriptionStatus: true,
-          subscriptionExpiresAt: true,
-          revenueSharePercent: true,
-          subscriptions: {
-            where: {
-              status: "ACTIVE",
-              tier: { not: "FREE" },
+  // Try with subscription fields first, fallback if migration not applied
+  let group: any
+  try {
+    group = await prisma.telegramGroup.findUnique({
+      where: { id: groupId },
+      include: {
+        user: {
+          select: {
+            id: true,
+            freePostsUsed: true,
+            freePostsLimit: true,
+            subscriptionTier: true,
+            subscriptionStatus: true,
+            subscriptionExpiresAt: true,
+            revenueSharePercent: true,
+            subscriptions: {
+              where: {
+                status: "ACTIVE",
+                tier: { not: "FREE" },
+              },
             },
           },
         },
       },
-    },
-  })
+    })
+  } catch (error: any) {
+    // If subscription columns don't exist yet, fetch without them
+    if (error?.code === 'P2022' || error?.message?.includes('does not exist')) {
+      console.warn('[posts] Subscription columns not yet migrated, fetching without subscription fields')
+      group = await prisma.telegramGroup.findUnique({
+        where: { id: groupId },
+        include: {
+          user: {
+            select: {
+              id: true,
+              freePostsUsed: true,
+              freePostsLimit: true,
+              revenueSharePercent: true,
+              subscriptions: {
+                where: {
+                  status: "ACTIVE",
+                  tier: { not: "FREE" },
+                },
+              },
+            },
+          },
+        },
+      })
+      // Add default values for subscription fields
+      if (group?.user) {
+        group.user = {
+          ...group.user,
+          subscriptionTier: 'FREE',
+          subscriptionStatus: 'ACTIVE',
+          subscriptionExpiresAt: null,
+        }
+      }
+    } else {
+      throw error
+    }
+  }
 
   if (!group) {
     return NextResponse.json({ error: "Group not found" }, { status: 404 })

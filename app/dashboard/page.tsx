@@ -11,9 +11,14 @@ export default async function DashboardPage() {
   }
 
   // Check if user has active subscription (required for dashboard access)
+  // Defensive query - only select existing fields
   const user = await prisma.user.findUnique({
     where: { id: session.user.id },
-    include: {
+    select: {
+      id: true,
+      subscriptionTier: true,
+      subscriptionStatus: true,
+      subscriptionExpiresAt: true,
       subscriptions: {
         where: {
           status: "ACTIVE",

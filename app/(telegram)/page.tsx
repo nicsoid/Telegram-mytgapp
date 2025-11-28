@@ -80,24 +80,59 @@ export default function TelegramMiniAppPage() {
     }
   }
 
-  if (status === "loading") {
+  // Show loading state while checking authentication
+  // Give auto-auth time to complete (up to 3 seconds)
+  const [authTimeout, setAuthTimeout] = useState(false)
+  
+  useEffect(() => {
+    if (status === "loading") {
+      const timer = setTimeout(() => {
+        setAuthTimeout(true)
+      }, 3000)
+      return () => clearTimeout(timer)
+    } else {
+      setAuthTimeout(false)
+    }
+  }, [status])
+
+  if (status === "loading" && !authTimeout) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100">
         <div className="text-center">
           <div className="mb-4 text-4xl">⏳</div>
-          <p className="text-gray-600">Loading...</p>
+          <p className="text-gray-600">Authenticating...</p>
+          <p className="mt-2 text-sm text-gray-500">Please wait while we sign you in</p>
         </div>
       </div>
     )
   }
 
   if (!session?.user) {
+    // Check if we're in Telegram WebApp
+    const isInTelegram = typeof window !== "undefined" && (window as any).Telegram?.WebApp
+    
     return (
       <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 px-4">
-        <div className="text-center">
+        <div className="text-center max-w-md">
           <div className="mb-4 text-4xl">🔐</div>
-          <p className="text-gray-600 mb-4">Please sign in with Telegram</p>
-          <p className="text-sm text-gray-500">If you're in Telegram, authentication should happen automatically</p>
+          <p className="text-gray-600 mb-2">Authentication Required</p>
+          {isInTelegram ? (
+            <>
+              <p className="text-sm text-gray-500 mb-4">
+                We're having trouble authenticating you automatically. Please try refreshing the page.
+              </p>
+              <button
+                onClick={() => window.location.reload()}
+                className="rounded-lg bg-blue-600 px-4 py-2 text-white font-medium hover:bg-blue-700 transition-colors"
+              >
+                Refresh Page
+              </button>
+            </>
+          ) : (
+            <p className="text-sm text-gray-500">
+              Please open this app from Telegram to sign in automatically, or visit the web version to sign in manually.
+            </p>
+          )}
         </div>
       </div>
     )

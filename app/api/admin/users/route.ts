@@ -25,8 +25,10 @@ export async function GET(request: NextRequest) {
     ]
   }
 
-  const [users, total] = await Promise.all([
-    prisma.user.findMany({
+  // Try to fetch with subscription fields, fallback to basic fields if migration not applied
+  let users: any[]
+  try {
+    users = await prisma.user.findMany({
       where,
       skip,
       take: limit,
@@ -49,9 +51,45 @@ export async function GET(request: NextRequest) {
           },
         },
       },
-    }),
-    prisma.user.count({ where }),
-  ])
+    })
+  } catch (error: any) {
+    // If subscription columns don't exist yet, fetch without them
+    if (error?.code === 'P2022' || error?.message?.includes('does not exist')) {
+      console.warn('[admin/users] Subscription columns not yet migrated, fetching without subscription fields')
+      users = await prisma.user.findMany({
+        where,
+        skip,
+        take: limit,
+        orderBy: { createdAt: "desc" },
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          telegramUsername: true,
+          role: true,
+          credits: true,
+          isVerified: true,
+          createdAt: true,
+          _count: {
+            select: {
+              creditTransactions: true,
+              advertiserPosts: true,
+            },
+          },
+        },
+      })
+      // Add default values for subscription fields
+      users = users.map(user => ({
+        ...user,
+        subscriptionTier: 'FREE',
+        subscriptionStatus: 'ACTIVE',
+      }))
+    } else {
+      throw error
+    }
+  }
+
+  const total = await prisma.user.count({ where })
 
   return NextResponse.json({
     users,
