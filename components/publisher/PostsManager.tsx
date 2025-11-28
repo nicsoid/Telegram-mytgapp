@@ -158,25 +158,19 @@ export default function PostsManager() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="bg-white shadow">
-        <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-3xl font-bold text-gray-900">Schedule Posts</h1>
-              <p className="mt-2 text-sm text-gray-600">Schedule posts in your Telegram groups</p>
-            </div>
-            <Link
-              href="/dashboard"
-              className="text-sm font-medium text-gray-600 hover:text-gray-900"
-            >
-              ← Back to Dashboard
-            </Link>
-          </div>
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900">Schedule Posts</h1>
+          <p className="mt-2 text-sm text-gray-600">Schedule posts in your Telegram groups</p>
         </div>
+        <button
+          onClick={fetchData}
+          className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50"
+        >
+          🔄 Refresh
+        </button>
       </div>
-
-      <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
         {error && (
           <div className="mb-6 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800">
             {error}
@@ -315,7 +309,6 @@ export default function PostsManager() {
             ))}
           </div>
         )}
-      </div>
     </div>
   )
 }

@@ -102,25 +102,11 @@ export default function GroupsManager() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="bg-white shadow">
-        <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-3xl font-bold text-gray-900">Manage Groups</h1>
-              <p className="mt-2 text-sm text-gray-600">Add and manage your Telegram groups</p>
-            </div>
-            <Link
-              href="/dashboard"
-              className="text-sm font-medium text-gray-600 hover:text-gray-900"
-            >
-              ← Back to Dashboard
-            </Link>
-          </div>
-        </div>
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-3xl font-bold text-gray-900">Manage Groups</h1>
+        <p className="mt-2 text-sm text-gray-600">Add and manage your Telegram groups</p>
       </div>
-
-      <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
         {success && (
           <div className="mb-6 rounded-lg border border-green-200 bg-green-50 p-4">
             <p className="text-sm text-green-800">{success}</p>
@@ -297,7 +283,7 @@ export default function GroupsManager() {
                   </div>
                   <div className="ml-4 flex flex-col gap-2">
                     <Link
-                      href={`/dashboard/groups/${group.id}`}
+                      href="/dashboard/groups"
                       className="rounded bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700"
                     >
                       Manage
@@ -314,7 +300,6 @@ export default function GroupsManager() {
             ))}
           </div>
         )}
-      </div>
     </div>
   )
 }
