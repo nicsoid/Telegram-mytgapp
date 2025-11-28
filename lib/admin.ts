@@ -38,6 +38,8 @@ export async function requireActiveSubscription() {
       subscriptionTier: true,
       subscriptionStatus: true,
       subscriptionExpiresAt: true,
+      telegramVerifiedAt: true,
+      telegramVerified: true,
       subscriptions: {
         where: {
           status: "ACTIVE",
