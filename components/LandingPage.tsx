@@ -1,10 +1,33 @@
 "use client"
 
 import Link from "next/link"
-import { useSession } from "next-auth/react"
+import { useSession, signOut } from "next-auth/react"
 
 export default function LandingPage() {
   const { data: session } = useSession()
+  const displayName =
+    session?.user?.name ||
+    session?.user?.telegramUsername ||
+    session?.user?.email ||
+    "Member"
+
+  const appPath =
+    session?.user?.role === "ADMIN"
+      ? "/admin"
+      : session?.user?.role === "PUBLISHER"
+        ? "/dashboard"
+        : "/app"
+
+  const appLabel =
+    session?.user?.role === "ADMIN"
+      ? "Open Admin"
+      : session?.user?.role === "PUBLISHER"
+        ? "Open Dashboard"
+        : "Open App"
+
+  const handleSignOut = () => {
+    signOut({ callbackUrl: "/" })
+  }
 
   return (
     <div className="min-h-screen bg-white">
@@ -17,14 +40,25 @@ export default function LandingPage() {
                 My<span className="text-blue-600">Tg</span>App
               </h1>
             </div>
-            <div className="flex items-center space-x-4">
+            <div className="flex items-center space-x-3">
               {session ? (
-                <Link
-                  href={session.user?.role === "ADMIN" ? "/admin" : "/dashboard"}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"
-                >
-                  Dashboard
-                </Link>
+                <>
+                  <span className="hidden sm:block text-sm text-gray-600">
+                    Signed in as <span className="font-medium text-gray-900">{displayName}</span>
+                  </span>
+                  <Link
+                    href={appPath}
+                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"
+                  >
+                    {appLabel}
+                  </Link>
+                  <button
+                    onClick={handleSignOut}
+                    className="px-3 py-2 text-sm text-gray-500 hover:text-gray-900 transition-colors"
+                  >
+                    Log out
+                  </button>
+                </>
               ) : (
                 <>
                   <Link
@@ -64,7 +98,7 @@ export default function LandingPage() {
               with our powerful, easy-to-use platform.
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
-              {!session && (
+              {!session ? (
                 <>
                   <Link
                     href="/auth/publisher/signup"
@@ -79,8 +113,36 @@ export default function LandingPage() {
                     Sign In
                   </Link>
                 </>
+              ) : (
+                <>
+                  <Link
+                    href={appPath}
+                    className="px-8 py-4 bg-blue-600 text-white rounded-lg text-lg font-semibold hover:bg-blue-700 transition-colors shadow-lg"
+                  >
+                    {appLabel}
+                  </Link>
+                  <button
+                    onClick={handleSignOut}
+                    className="px-8 py-4 bg-white text-gray-700 rounded-lg text-lg font-semibold border-2 border-gray-300 hover:border-gray-400 transition-colors"
+                  >
+                    Log out
+                  </button>
+                </>
               )}
             </div>
+            {session && (
+              <div className="mt-10 flex justify-center">
+                <div className="rounded-2xl border border-blue-100 bg-white/80 px-6 py-4 shadow-sm flex items-center gap-3 text-sm text-gray-600">
+                  <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-blue-100 text-blue-700 font-semibold">
+                    {displayName.charAt(0).toUpperCase()}
+                  </span>
+                  <div>
+                    <p className="font-medium text-gray-900">Welcome back, {displayName}!</p>
+                    <p>Continue where you left off from the app area.</p>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </section>
@@ -298,12 +360,19 @@ export default function LandingPage() {
           <p className="text-xl text-blue-100 mb-10 max-w-2xl mx-auto">
             Join thousands of publishers who are already monetizing their Telegram groups.
           </p>
-          {!session && (
+          {!session ? (
             <Link
               href="/auth/publisher/signup"
               className="inline-block px-10 py-5 bg-white text-blue-600 rounded-lg text-lg font-semibold hover:bg-gray-50 transition-colors shadow-xl"
             >
               Create Your Account
+            </Link>
+          ) : (
+            <Link
+              href={appPath}
+              className="inline-block px-10 py-5 bg-white text-blue-600 rounded-lg text-lg font-semibold hover:bg-gray-50 transition-colors shadow-xl"
+            >
+              {appLabel}
             </Link>
           )}
         </div>
