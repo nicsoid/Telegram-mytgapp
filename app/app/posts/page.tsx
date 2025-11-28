@@ -795,8 +795,6 @@ export default function AppPostsPage() {
           </div>
         </div>
       )}
-        </section>
-      </div>
     </div>
   )
 }
