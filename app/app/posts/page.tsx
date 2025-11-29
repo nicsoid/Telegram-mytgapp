@@ -333,7 +333,7 @@ export default function AppPostsPage() {
   }
 
   // Show loading while data is being fetched (but not while session is loading)
-  if (loading && status === "authenticated") {
+  if (loading && session?.user) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-gray-50 via-white to-gray-50">
         <div className="text-center">

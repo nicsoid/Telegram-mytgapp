@@ -120,18 +120,43 @@ export async function POST(request: NextRequest) {
         const subscription = event.data.object as any
         const subscriptionId = subscription.id
 
-        await prisma.subscription.updateMany({
+        // Find the subscription record
+        const dbSubscription = await prisma.subscription.findFirst({
           where: { stripeSubscriptionId: subscriptionId },
-          data: {
-            status: subscription.status === "active" ? "ACTIVE" : "CANCELED",
-            currentPeriodStart: subscription.current_period_start
-              ? new Date(subscription.current_period_start * 1000)
-              : null,
-            currentPeriodEnd: subscription.current_period_end
-              ? new Date(subscription.current_period_end * 1000)
-              : null,
-          },
+          include: { user: true },
         })
+
+        if (dbSubscription) {
+          // Update subscription record
+          await prisma.subscription.update({
+            where: { id: dbSubscription.id },
+            data: {
+              status: subscription.status === "active" ? "ACTIVE" : "CANCELED",
+              currentPeriodStart: subscription.current_period_start
+                ? new Date(subscription.current_period_start * 1000)
+                : null,
+              currentPeriodEnd: subscription.current_period_end
+                ? new Date(subscription.current_period_end * 1000)
+                : null,
+            },
+          })
+
+          // Update user's subscription status
+          // If subscription is canceled or deleted, update user status
+          if (subscription.status !== "active" || subscription.cancel_at_period_end) {
+            await prisma.user.update({
+              where: { id: dbSubscription.userId },
+              data: {
+                subscriptionStatus: subscription.status === "active" && subscription.cancel_at_period_end
+                  ? "ACTIVE" // Still active but will cancel at period end
+                  : "CANCELED",
+                subscriptionExpiresAt: subscription.current_period_end
+                  ? new Date(subscription.current_period_end * 1000)
+                  : null,
+              },
+            })
+          }
+        }
         break
       }
 

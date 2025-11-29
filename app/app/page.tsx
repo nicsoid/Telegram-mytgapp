@@ -149,7 +149,7 @@ export default function AppPage() {
           <div className="mb-4 text-4xl">🔐</div>
           <p className="text-gray-600 mb-2">Please sign in</p>
           <Link
-            href="/auth/signin"
+            href={`/auth/signin?callbackUrl=${encodeURIComponent('/app')}`}
             className="inline-flex items-center rounded-lg bg-gradient-to-r from-blue-600 to-indigo-600 px-6 py-3 text-sm font-semibold text-white shadow-md transition-all hover:from-blue-700 hover:to-indigo-700 hover:shadow-lg"
           >
             Sign In

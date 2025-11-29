@@ -134,9 +134,11 @@ export async function GET(request: NextRequest) {
       })
     }
 
-    // Create a session by redirecting to signin page with widget token
-    // Always use "/" as callbackUrl to prevent redirect loops
-    const callbackUrl = "/"
+    // Get callbackUrl from request or use "/app" as default (User Area)
+    const requestedCallbackUrl = request.headers.get('referer') 
+      ? new URL(request.headers.get('referer')!).searchParams.get('callbackUrl')
+      : null
+    const callbackUrl = requestedCallbackUrl || "/app"
     const baseUrl = getBaseUrl(request)
     const baseDomain = (() => {
       try {

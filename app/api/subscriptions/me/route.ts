@@ -17,9 +17,7 @@ export async function GET(request: NextRequest) {
       subscriptionStatus: true,
       subscriptionExpiresAt: true,
       subscriptions: {
-        where: {
-          status: "ACTIVE",
-        },
+        // Get the most recent subscription (active or canceled)
         orderBy: { createdAt: "desc" },
         take: 1,
       },

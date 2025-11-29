@@ -20,6 +20,15 @@ module.exports = {
         NEXTAUTH_URL: process.env.NEXTAUTH_URL,
         AUTH_URL: process.env.AUTH_URL,
         DATABASE_URL: process.env.DATABASE_URL,
+        // Stripe configuration
+        STRIPE_SECRET_KEY: process.env.STRIPE_SECRET_KEY,
+        STRIPE_PUBLISHABLE_KEY: process.env.STRIPE_PUBLISHABLE_KEY,
+        STRIPE_WEBHOOK_SECRET: process.env.STRIPE_WEBHOOK_SECRET,
+        STRIPE_MONTHLY_PRICE_ID: process.env.STRIPE_MONTHLY_PRICE_ID,
+        SUBSCRIPTION_STRIPE_PRICE_ID: process.env.SUBSCRIPTION_STRIPE_PRICE_ID,
+        STRIPE_REVENUE_SHARE_PRICE_ID: process.env.STRIPE_REVENUE_SHARE_PRICE_ID,
+        MONTHLY_SUBSCRIPTION_PRICE: process.env.MONTHLY_SUBSCRIPTION_PRICE,
+        // Other env vars will be loaded by Next.js from .env file automatically
       },
       error_file: './logs/mytgapp-web-error.log',
       out_file: './logs/mytgapp-web-out.log',

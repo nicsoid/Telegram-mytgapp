@@ -108,7 +108,9 @@ function SignInForm() {
           }
         }
         
-        router.replace(callbackUrl)
+        // Use hard redirect to ensure session cookie is read and session is fully established
+        // This prevents the "Please sign in" loop after widget authentication
+        window.location.href = callbackUrl
       }
     } catch (err) {
       console.error("Widget sign-in error:", err)
@@ -137,7 +139,9 @@ function SignInForm() {
         setError("Authentication failed. Please try again.")
       } else if (result?.ok) {
         const callbackUrl = searchParams.get("callbackUrl") || "/"
-        router.replace(callbackUrl)
+        // Use hard redirect to ensure session cookie is read and session is fully established
+        // This prevents the "Please sign in" loop after widget authentication
+        window.location.href = callbackUrl
       }
     } catch (err) {
       setError("An error occurred. Please try again.")
