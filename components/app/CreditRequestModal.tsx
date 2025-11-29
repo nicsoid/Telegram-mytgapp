@@ -317,10 +317,16 @@ export default function CreditRequestModal({
                   .find((o) => o.id === groupOwnerId)
                   ?.groups.map((group: any) => (
                     <option key={group.id} value={group.id}>
-                      {group.name} ({group.pricePerPost} credits/post)
+                      {group.name} ({group.pricePerPost === 0 ? "FREE" : `${group.pricePerPost} credits/post`})
                     </option>
                   ))}
               </select>
+              <div className="mt-2 rounded-lg bg-blue-50 border border-blue-200 p-3">
+                <p className="text-xs text-blue-800 font-medium mb-1">💡 Important Note</p>
+                <p className="text-xs text-blue-700">
+                  Credits granted by this group owner can be used to post in <strong>all of their groups</strong>, not just the selected one. The group selection is optional and helps the owner understand which group you're interested in.
+                </p>
+              </div>
             </div>
           )}
 
@@ -417,9 +423,18 @@ export default function CreditRequestModal({
 
         {/* Footer Info */}
         <div className="px-6 py-4 bg-gray-50 border-t border-gray-200 rounded-b-2xl">
-          <p className="text-xs text-gray-500 text-center">
-            Your request will be reviewed by the group owner. You'll be notified once it's processed.
-          </p>
+          <div className="space-y-2">
+            <p className="text-xs text-gray-500 text-center">
+              Your request will be reviewed by the group owner. You'll be notified once it's processed.
+            </p>
+            {groupOwnerId && (
+              <div className="rounded-lg bg-green-50 border border-green-200 p-2">
+                <p className="text-xs text-green-800 text-center font-medium">
+                  ✓ Credits from this owner can be used for all their groups
+                </p>
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </div>

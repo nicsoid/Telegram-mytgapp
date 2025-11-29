@@ -171,6 +171,11 @@ export default function GroupCatalog() {
               <div className="flex items-center justify-between text-xs text-gray-500">
                 <span>Owner: {group.user.name || group.user.telegramUsername || "Unknown"}</span>
               </div>
+              <div className="rounded-lg bg-blue-50 border border-blue-200 p-2 mt-2">
+                <p className="text-xs text-blue-700">
+                  💡 Credits from this owner can be used for <strong>all their groups</strong>
+                </p>
+              </div>
 
               {group.stickyPostsEnabled && group.stickyPostPrice && (
                 <div className="mb-3 rounded-lg bg-purple-50 border border-purple-200 p-3">
@@ -217,9 +222,9 @@ export default function GroupCatalog() {
                         setShowCreditModal(true)
                       }}
                       className="rounded-lg border border-blue-300 bg-blue-50 px-4 py-2.5 text-sm font-semibold text-blue-700 transition-all hover:bg-blue-100"
-                      title="Request credits from group owner"
+                      title="Request credits from group owner (usable for all their groups)"
                     >
-                      💳
+                      💳 Request Credits
                     </button>
                   </>
                 ) : (

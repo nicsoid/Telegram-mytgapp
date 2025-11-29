@@ -63,6 +63,12 @@ export async function GET(request: NextRequest) {
       include: {
         post: {
           include: {
+            advertiser: {
+              select: {
+                id: true,
+                credits: true,
+              },
+            },
             group: {
               include: {
                 user: {
@@ -101,6 +107,33 @@ export async function GET(request: NextRequest) {
         // Skip posts for groups without chat ID (not verified yet)
         if (!chatId) {
           results.errors.push(`Post ${post.id}: Group ${post.group.name} is not verified (no chat ID)`)
+          
+          // Refund credits if paid post
+          if (post.isPaidAd && post.creditsPaid && post.creditsPaid > 0 && post.advertiserId) {
+            try {
+              const refundAmount: number = post.creditsPaid
+              const advertiserId: string = post.advertiserId
+              await prisma.$transaction(async (tx) => {
+                await tx.user.update({
+                  where: { id: advertiserId },
+                  data: { credits: { increment: refundAmount } },
+                })
+                await tx.creditTransaction.create({
+                  data: {
+                    userId: advertiserId,
+                    amount: refundAmount,
+                    type: "PURCHASE",
+                    relatedPostId: post.id,
+                    relatedGroupId: post.groupId,
+                    description: `Refund for failed post (group not verified): ${post.group.name}`,
+                  },
+                })
+              })
+            } catch (refundError) {
+              console.error(`Failed to refund credits for post ${post.id}:`, refundError)
+            }
+          }
+          
           await prisma.scheduledPostTime.update({
             where: { id: scheduledTime.id },
             data: { status: PostStatus.FAILED, failureReason: "Group not verified" },
@@ -116,6 +149,33 @@ export async function GET(request: NextRequest) {
 
         if (!hasActiveSubscription) {
           results.errors.push(`Post ${post.id}: Group owner ${post.group.name} does not have active subscription`)
+          
+          // Refund credits if paid post
+          if (post.isPaidAd && post.creditsPaid && post.creditsPaid > 0 && post.advertiserId) {
+            try {
+              const refundAmount: number = post.creditsPaid
+              const advertiserId: string = post.advertiserId
+              await prisma.$transaction(async (tx) => {
+                await tx.user.update({
+                  where: { id: advertiserId },
+                  data: { credits: { increment: refundAmount } },
+                })
+                await tx.creditTransaction.create({
+                  data: {
+                    userId: advertiserId,
+                    amount: refundAmount,
+                    type: "PURCHASE",
+                    relatedPostId: post.id,
+                    relatedGroupId: post.groupId,
+                    description: `Refund for failed post (subscription required): ${post.group.name}`,
+                  },
+                })
+              })
+            } catch (refundError) {
+              console.error(`Failed to refund credits for post ${post.id}:`, refundError)
+            }
+          }
+          
           await prisma.scheduledPostTime.update({
             where: { id: scheduledTime.id },
             data: { status: PostStatus.FAILED, failureReason: "Group owner subscription required" },
@@ -191,6 +251,74 @@ export async function GET(request: NextRequest) {
         results.sent++
       } catch (error: any) {
         console.error(`Failed to send scheduled time ${scheduledTime.id} for post ${post.id}:`, error)
+
+        // If this is a paid post, refund credits to the advertiser
+        if (post.isPaidAd && post.creditsPaid && post.creditsPaid > 0 && post.advertiserId) {
+          try {
+            const refundAmount: number = post.creditsPaid
+            const advertiserId: string = post.advertiserId
+            await prisma.$transaction(async (tx) => {
+              // Refund credits to advertiser
+              await tx.user.update({
+                where: { id: advertiserId },
+                data: {
+                  credits: { increment: refundAmount },
+                },
+              })
+
+              // Create refund transaction
+              await tx.creditTransaction.create({
+                data: {
+                  userId: advertiserId,
+                  amount: refundAmount,
+                  type: "PURCHASE", // Using PURCHASE type for refunds (positive amount)
+                  relatedPostId: post.id,
+                  relatedGroupId: post.groupId,
+                  description: `Refund for failed post in group: ${post.group.name}`,
+                },
+              })
+
+              // Reverse earnings from group owner (if they received earnings)
+              const groupOwner = post.group.user
+              const commissionPercent = groupOwner.revenueSharePercent || 0.2 // Default 20%
+              const ownerEarnings = Math.floor(refundAmount * (1 - commissionPercent))
+
+              if (ownerEarnings > 0) {
+                await tx.user.update({
+                  where: { id: groupOwner.id },
+                  data: {
+                    credits: { decrement: ownerEarnings },
+                    totalEarnings: { decrement: ownerEarnings },
+                  },
+                })
+
+                await tx.creditTransaction.create({
+                  data: {
+                    userId: groupOwner.id,
+                    amount: -ownerEarnings,
+                    type: "SPENT", // Negative transaction to reverse earnings
+                    relatedPostId: post.id,
+                    relatedGroupId: post.groupId,
+                    description: `Reversed earnings from failed post in ${post.group.name}`,
+                  },
+                })
+
+                // Reverse group revenue
+                await tx.telegramGroup.update({
+                  where: { id: post.groupId },
+                  data: {
+                    totalRevenue: { decrement: ownerEarnings },
+                  },
+                })
+              }
+            })
+
+            console.log(`Refunded ${post.creditsPaid} credits to advertiser ${post.advertiserId} for failed post ${post.id}`)
+          } catch (refundError: any) {
+            console.error(`Failed to refund credits for post ${post.id}:`, refundError)
+            // Continue with marking as failed even if refund fails
+          }
+        }
 
         // Update scheduled time status to failed
         await prisma.scheduledPostTime.update({
