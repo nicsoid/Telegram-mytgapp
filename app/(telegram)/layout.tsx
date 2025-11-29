@@ -18,48 +18,65 @@ export default function TelegramLayout({ children }: { children: React.ReactNode
         if (tg) {
           setIsTelegramWebApp(true)
           tg.ready()
+          tg.expand() // Expand the mini app to full height
           
           // Auto-authenticate if in Telegram Mini App and not signed in
           const checkAndAuth = () => {
-            // Only attempt if we haven't already tried and session is not loading
-            if ((status === "unauthenticated" || status === "loading") && !autoSignInAttempted) {
+            // Only attempt if we haven't already tried and session is not authenticated
+            if (status === "unauthenticated" && !autoSignInAttempted) {
               // Try multiple ways to get initData
+              // tg.initData is the raw string from Telegram (preferred - this is what we need!)
               let initData = tg.initData
+              
+              // If initData is not available as string, try to get it from initDataUnsafe
+              // Note: initDataUnsafe might not have the hash in the right format, so prefer tg.initData
               if (!initData && tg.initDataUnsafe) {
-                // initDataUnsafe is an object, we need to convert it to a string
                 try {
+                  // initDataUnsafe is an object, we need to convert it to URL-encoded string format
                   const params = new URLSearchParams()
+                  
+                  // Add user object as JSON string (required)
                   if (tg.initDataUnsafe.user) {
                     params.set('user', JSON.stringify(tg.initDataUnsafe.user))
                   }
+                  
+                  // Add auth_date (required)
                   if (tg.initDataUnsafe.auth_date) {
                     params.set('auth_date', tg.initDataUnsafe.auth_date.toString())
                   }
+                  
+                  // Add hash (required for verification - must come from Telegram)
                   if (tg.initDataUnsafe.hash) {
                     params.set('hash', tg.initDataUnsafe.hash)
                   }
+                  
+                  // Add query_id if present
                   if (tg.initDataUnsafe.query_id) {
                     params.set('query_id', tg.initDataUnsafe.query_id)
                   }
+                  
+                  // Add start_param if present
+                  if (tg.initDataUnsafe.start_param) {
+                    params.set('start_param', tg.initDataUnsafe.start_param)
+                  }
+                  
                   initData = params.toString()
+                  console.log('[TelegramLayout] Converted initDataUnsafe to initData string')
                 } catch (e) {
                   console.error('[TelegramLayout] Error converting initDataUnsafe:', e)
                 }
               }
               
-              // Also try to get from window.location if available
+              // Also try to get from window.location.search (Telegram sometimes passes it as query param)
               if (!initData && typeof window !== "undefined") {
                 const urlParams = new URLSearchParams(window.location.search)
-                const tgInitData = urlParams.get('tgWebAppData') || urlParams.get('initData')
-                if (tgInitData) {
-                  initData = tgInitData
-                }
+                initData = urlParams.get('tgWebAppData') || urlParams.get('_auth') || urlParams.get('initData')
               }
               
-              if (initData) {
+              if (initData && initData.length > 0) {
                 console.log('[TelegramLayout] Auto-authenticating with Telegram WebApp initData')
                 console.log('[TelegramLayout] initData length:', initData.length)
-                console.log('[TelegramLayout] initData preview:', initData.substring(0, 100))
+                console.log('[TelegramLayout] initData preview:', initData.substring(0, 150))
                 setAutoSignInAttempted(true)
                 
                 // Auto-sign in with Telegram WebApp data
@@ -80,7 +97,7 @@ export default function TelegramLayout({ children }: { children: React.ReactNode
                       // Force a page refresh to ensure session is established
                       setTimeout(() => {
                         window.location.reload()
-                      }, 500)
+                      }, 300)
                     } else {
                       console.warn('[TelegramLayout] Auto-sign in returned unexpected result:', result)
                       // Reset after delay to allow retry
@@ -103,11 +120,9 @@ export default function TelegramLayout({ children }: { children: React.ReactNode
                 console.log('[TelegramLayout] tg.initDataUnsafe:', tg.initDataUnsafe)
                 console.log('[TelegramLayout] tg.version:', tg.version)
                 // If no initData, wait a bit and try again (script might still be loading)
-                if (status === "loading") {
-                  setTimeout(() => {
-                    setAutoSignInAttempted(false)
-                  }, 2000)
-                }
+                setTimeout(() => {
+                  setAutoSignInAttempted(false)
+                }, 2000)
               }
             }
           }
@@ -116,15 +131,14 @@ export default function TelegramLayout({ children }: { children: React.ReactNode
           checkAndAuth()
           
           // Also try after delays in case session is still initializing or initData becomes available
+          // Telegram WebApp might need time to initialize
           const timeout1 = setTimeout(checkAndAuth, 500)
           const timeout2 = setTimeout(checkAndAuth, 1500)
           const timeout3 = setTimeout(checkAndAuth, 3000)
-          const timeout4 = setTimeout(checkAndAuth, 5000)
           return () => {
             clearTimeout(timeout1)
             clearTimeout(timeout2)
             clearTimeout(timeout3)
-            clearTimeout(timeout4)
           }
         }
       }
@@ -133,14 +147,14 @@ export default function TelegramLayout({ children }: { children: React.ReactNode
       checkTelegram()
       
       // Also check after script might have loaded
-      const timeout = setTimeout(checkTelegram, 200)
+      const timeout = setTimeout(checkTelegram, 500)
       return () => clearTimeout(timeout)
     }
   }, [status, autoSignInAttempted])
 
   return (
     <>
-      {/* Script is loaded in root page, but ensure it's available here too */}
+      {/* Load Telegram WebApp script if not already loaded */}
       {typeof window !== "undefined" && !(window as any).Telegram && (
         <Script
           src="https://telegram.org/js/telegram-web-app.js"
@@ -153,6 +167,9 @@ export default function TelegramLayout({ children }: { children: React.ReactNode
               if (tg) {
                 setIsTelegramWebApp(true)
                 tg.ready()
+                tg.expand()
+                console.log('[TelegramLayout] Telegram WebApp initialized')
+                console.log('[TelegramLayout] initData available:', !!tg.initData)
               }
             }
           }}
