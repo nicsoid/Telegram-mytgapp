@@ -245,6 +245,7 @@ export async function POST(request: NextRequest) {
         {
           error: "Group owner must have an active subscription to schedule posts. Please subscribe to continue posting.",
           requiresSubscription: true,
+          subscribeUrl: "/app/subscriptions",
         },
         { status: 403 }
       )

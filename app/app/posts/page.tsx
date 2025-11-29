@@ -271,7 +271,17 @@ export default function AppPostsPage() {
         setTimeout(() => setMessage(null), 5000)
         loadPosts()
       } else {
-        setMessage(data.error || (editingPost ? "Failed to update post" : "Failed to schedule post"))
+        const errorMsg = data.error || (editingPost ? "Failed to update post" : "Failed to schedule post")
+        setMessage(errorMsg)
+        
+        // If subscription is required, show link to subscribe
+        if (data.requiresSubscription && data.subscribeUrl) {
+          setTimeout(() => {
+            if (confirm(`${errorMsg}\n\nWould you like to go to the subscription page?`)) {
+              window.location.href = data.subscribeUrl
+            }
+          }, 100)
+        }
       }
     } catch (error) {
       setMessage("An error occurred while " + (editingPost ? "updating" : "scheduling") + " the post.")
