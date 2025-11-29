@@ -218,6 +218,7 @@ model ScheduledPostTime {
   postedAt      DateTime? // When it was actually posted
   status        PostStatus @default(SCHEDULED) // Status of this specific scheduled time
   failureReason String?    @db.Text
+  isFreePost    Boolean    @default(false) // If true, this post is free (no credits deducted)
   createdAt     DateTime   @default(now())
   updatedAt     DateTime   @updatedAt
 
@@ -226,6 +227,7 @@ model ScheduledPostTime {
   @@index([postId])
   @@index([scheduledAt])
   @@index([status])
+  @@index([isFreePost])
 }
 
 model CreditTransaction {

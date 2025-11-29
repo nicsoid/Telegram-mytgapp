@@ -13,6 +13,7 @@ type TelegramGroup = {
   name: string
   isVerified: boolean
   pricePerPost: number
+  freePostIntervalDays: number
   advertiserMessage: string | null
 }
 
@@ -22,6 +23,7 @@ type ScheduledTime = {
   postedAt: string | null
   status: string
   failureReason: string | null
+  isFreePost: boolean
 }
 
 type TelegramPost = {
@@ -45,8 +47,7 @@ const initialPost = {
   groupId: "",
   content: "",
   mediaUrls: [] as string[],
-  scheduledTimes: [] as string[], // Array of datetime strings
-  isPaidAd: false,
+  scheduledTimes: [] as Array<{ time: string; isFree: boolean }>, // Array of scheduled times with free flag
   isRecurring: false,
   recurrencePattern: "daily" as "daily" | "weekly" | "monthly" | "custom",
   recurrenceInterval: 1,
@@ -71,12 +72,26 @@ function AppPostsPageContent() {
   const [editingPost, setEditingPost] = useState<TelegramPost | null>(null)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState<string | null>(null)
   const [newScheduledTime, setNewScheduledTime] = useState("")
+  const [freePostEligibility, setFreePostEligibility] = useState<{
+    canUseFree: boolean
+    daysRemaining: number | null
+    lastFreePostDate: string | null
+    isFreeGroup?: boolean
+  } | null>(null)
 
   // Filter groups: must be verified AND owner must have active subscription
-  const verifiedGroups = useMemo(() => 
-    groups.filter((g) => g.isVerified && (g as any).ownerHasActiveSubscription), 
-    [groups]
-  )
+  const verifiedGroups = useMemo(() => {
+    const filtered = groups.filter((g) => g.isVerified && (g as any).ownerHasActiveSubscription)
+    return filtered.map((g: any) => ({
+      id: g.id,
+      name: g.name,
+      isVerified: g.isVerified,
+      pricePerPost: g.pricePerPost,
+      freePostIntervalDays: g.freePostIntervalDays || 0,
+      advertiserMessage: g.advertiserMessage,
+      ownerHasActiveSubscription: g.ownerHasActiveSubscription,
+    })) as TelegramGroup[]
+  }, [groups])
 
   useEffect(() => {
     // Wait for session status to be determined
@@ -109,6 +124,7 @@ function AppPostsPageContent() {
       const ownData = await ownGroupsRes.json()
       const ownGroups = (ownData.groups || []).map((g: any) => ({
         ...g,
+        freePostIntervalDays: g.freePostIntervalDays || 0,
         ownerHasActiveSubscription: g.user?.subscriptions?.length > 0 || 
           (g.user?.subscriptionStatus === "ACTIVE" && 
            g.user?.subscriptionTier !== "FREE" &&
@@ -227,20 +243,63 @@ function AppPostsPageContent() {
     }
   }
 
-  const handleAddScheduledTime = () => {
-    if (newScheduledTime) {
-      setForm((prev) => ({
-        ...prev,
-        scheduledTimes: [...prev.scheduledTimes, newScheduledTime],
-      }))
-      setNewScheduledTime("")
+  const checkFreePostEligibility = async (groupId: string) => {
+    if (!groupId) {
+      setFreePostEligibility(null)
+      return
     }
+    try {
+      const res = await fetch(`/api/posts/free-post-eligibility?groupId=${groupId}`, {
+        credentials: "include",
+      })
+      if (res.ok) {
+        const data = await res.json()
+        setFreePostEligibility(data)
+      }
+    } catch (error) {
+      console.error("Failed to check free post eligibility", error)
+    }
+  }
+
+  useEffect(() => {
+    if (form.groupId) {
+      checkFreePostEligibility(form.groupId)
+    } else {
+      setFreePostEligibility(null)
+    }
+  }, [form.groupId])
+
+  const handleAddScheduledTime = () => {
+    if (!newScheduledTime) return
+    const selectedDate = new Date(newScheduledTime)
+    const now = new Date()
+    
+    if (selectedDate <= now) {
+      setMessage("❌ Cannot schedule posts in the past. Please select a future date and time.")
+      setTimeout(() => setMessage(null), 5000)
+      return
+    }
+    
+    setForm((prev) => ({
+      ...prev,
+      scheduledTimes: [...prev.scheduledTimes, { time: newScheduledTime, isFree: false }],
+    }))
+    setNewScheduledTime("")
   }
 
   const handleRemoveScheduledTime = (index: number) => {
     setForm((prev) => ({
       ...prev,
       scheduledTimes: prev.scheduledTimes.filter((_, i) => i !== index),
+    }))
+  }
+
+  const handleToggleFreePost = (index: number) => {
+    setForm((prev) => ({
+      ...prev,
+      scheduledTimes: prev.scheduledTimes.map((st, i) => 
+        i === index ? { ...st, isFree: !st.isFree } : st
+      ),
     }))
   }
 
@@ -273,8 +332,10 @@ function AppPostsPageContent() {
           groupId: form.groupId,
           content: form.content.trim(),
           mediaUrls: form.mediaUrls.filter(Boolean),
-          scheduledTimes: form.scheduledTimes.map((time) => new Date(time).toISOString()),
-          isPaidAd: form.isPaidAd,
+          scheduledTimes: form.scheduledTimes.map((st) => ({
+            time: new Date(st.time).toISOString(),
+            isFree: st.isFree,
+          })),
           ...(form.isRecurring && {
             isRecurring: true,
             recurrencePattern: form.recurrencePattern,
@@ -437,7 +498,7 @@ function AppPostsPageContent() {
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 flex-wrap">
                             <h3 className="text-base font-semibold text-gray-900">{post.group.name}</h3>
-                            {post.isPaidAd && post.advertiser && (
+                            {post.advertiserId && post.advertiser && (
                               <span className="inline-flex items-center rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-800">
                                 By: {post.advertiser.name || post.advertiser.telegramUsername || "Unknown"}
                               </span>
@@ -578,16 +639,18 @@ function AppPostsPageContent() {
       const now = new Date()
       const times = scheduledTimes.length > 0
         ? scheduledTimes
-            .map((st) => new Date(st.scheduledAt).toISOString().slice(0, 16))
-            .filter((time) => new Date(time) > now) // Only include future times
+            .map((st) => ({
+              time: new Date(st.scheduledAt).toISOString().slice(0, 16),
+              isFree: st.isFreePost || false,
+            }))
+            .filter((st) => new Date(st.time) > now) // Only include future times
         : [] // Start with empty if all times are sent, user can add new ones
                               
                             setForm({
                               groupId: post.group.id,
                               content: post.content,
                               mediaUrls: post.mediaUrls,
-                              scheduledTimes: times,
-                              isPaidAd: post.isPaidAd,
+                              scheduledTimes: times.map((t) => ({ time: new Date(t.time).toISOString(), isFree: t.isFree })),
                               isRecurring: false,
                               recurrencePattern: "daily",
                               recurrenceInterval: 1,
@@ -689,23 +752,115 @@ function AppPostsPageContent() {
               <label className="block text-sm font-semibold text-gray-700 mb-1">Scheduled Times</label>
               <p className="text-xs text-gray-500 mb-2">Add multiple posting times for this post</p>
               
+              {/* Free Post Eligibility Info */}
+              {form.groupId && (() => {
+                const selectedGroup = verifiedGroups.find(g => g.id === form.groupId)
+                if (!selectedGroup) return null
+                const isFreeGroup = selectedGroup.pricePerPost === 0
+                const freeInterval = selectedGroup.freePostIntervalDays || 0
+                
+                // For free groups, show quiet period info
+                if (isFreeGroup) {
+                  if (freeInterval > 0) {
+                    const canPost = freePostEligibility?.canUseFree ?? true
+                    const daysRemaining = freePostEligibility?.daysRemaining
+                    return (
+                      <div className={`mb-3 rounded-lg border p-3 ${
+                        canPost ? "border-green-200 bg-green-50" : "border-yellow-200 bg-yellow-50"
+                      }`}>
+                        <p className={`text-xs font-medium ${
+                          canPost ? "text-green-800" : "text-yellow-800"
+                        }`}>
+                          {canPost ? (
+                            <>🆓 This is a free group. You can post for free, but must wait {freeInterval} day(s) between posts.</>
+                          ) : (
+                            <>⏳ Quiet period: You can post again in {daysRemaining} day(s). Last post: {freePostEligibility?.lastFreePostDate ? format(new Date(freePostEligibility.lastFreePostDate), "MMM d, yyyy") : "N/A"}</>
+                          )}
+                        </p>
+                      </div>
+                    )
+                  } else {
+                    return (
+                      <div className="mb-3 rounded-lg border border-green-200 bg-green-50 p-3">
+                        <p className="text-xs font-medium text-green-800">
+                          🆓 This is a free group. You can post for free without any restrictions.
+                        </p>
+                      </div>
+                    )
+                  }
+                }
+                
+                // For paid groups, show free post eligibility if interval > 0
+                if (!isFreeGroup && freeInterval > 0 && freePostEligibility) {
+                  return (
+                    <div className={`mb-3 rounded-lg border p-3 ${
+                      freePostEligibility.canUseFree 
+                        ? "border-green-200 bg-green-50" 
+                        : "border-yellow-200 bg-yellow-50"
+                    }`}>
+                      <p className={`text-xs font-medium ${
+                        freePostEligibility.canUseFree ? "text-green-800" : "text-yellow-800"
+                      }`}>
+                        {freePostEligibility.canUseFree ? (
+                          <>✓ You can schedule one free post (no credits deducted) once per {freeInterval} days</>
+                        ) : (
+                          <>⏳ Free post available in {freePostEligibility.daysRemaining} day(s). Last free post: {freePostEligibility.lastFreePostDate ? format(new Date(freePostEligibility.lastFreePostDate), "MMM d, yyyy") : "N/A"}</>
+                        )}
+                      </p>
+                    </div>
+                  )
+                }
+                
+                return null
+              })()}
+
               {/* List of scheduled times */}
               {form.scheduledTimes.length > 0 && (
                 <div className="mb-3 space-y-2">
-                  {form.scheduledTimes.map((time, index) => (
-                    <div key={index} className="flex items-center gap-2 rounded-lg border border-gray-200 bg-gray-50 p-2">
-                      <span className="flex-1 text-sm text-gray-700">
-                        {format(new Date(time), "MMM d, yyyy 'at' h:mm a")}
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => handleRemoveScheduledTime(index)}
-                        className="rounded px-2 py-1 text-xs text-red-600 hover:bg-red-50"
-                      >
-                        Remove
-                      </button>
-                    </div>
-                  ))}
+                  {form.scheduledTimes.map((st, index) => {
+                    const selectedGroup = verifiedGroups.find(g => g.id === form.groupId)
+                    const isFreeGroup = selectedGroup ? selectedGroup.pricePerPost === 0 : false
+                    const freeInterval = selectedGroup ? (selectedGroup as TelegramGroup).freePostIntervalDays : 0
+                    // Only show free checkbox for paid groups (pricePerPost > 0) with freePostIntervalDays > 0
+                    const canMarkFree = !isFreeGroup && freeInterval > 0 && freePostEligibility?.canUseFree
+                    const isFree = st.isFree || isFreeGroup // Free groups are always free
+                    
+                    return (
+                      <div key={index} className={`flex items-center gap-2 rounded-lg border p-2 ${
+                        isFree ? "border-green-200 bg-green-50" : "border-gray-200 bg-gray-50"
+                      }`}>
+                        <span className="flex-1 text-sm text-gray-700">
+                          {format(new Date(st.time), "MMM d, yyyy 'at' h:mm a")}
+                        </span>
+                        {isFreeGroup && (
+                          <span className="text-xs text-green-700 font-medium">
+                            🆓 Free
+                          </span>
+                        )}
+                        {!isFreeGroup && freeInterval > 0 && (
+                          <label className="flex items-center gap-1 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={isFree}
+                              onChange={() => handleToggleFreePost(index)}
+                              disabled={!canMarkFree && !isFree}
+                              className="h-4 w-4 rounded border-gray-300 text-green-600 focus:ring-green-500 disabled:opacity-50"
+                            />
+                            <span className={`text-xs ${isFree ? "text-green-700 font-medium" : "text-gray-500"}`}>
+                              Free
+                            </span>
+                          </label>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveScheduledTime(index)}
+                          className="rounded px-2 py-1 text-xs text-red-600 hover:bg-red-50"
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    )
+                  })}
                 </div>
               )}
 
@@ -982,18 +1137,6 @@ function AppPostsPageContent() {
               )}
             </div>
 
-            <label className="flex items-center space-x-3 rounded-lg border border-gray-200 bg-gray-50 p-3 cursor-pointer hover:bg-gray-100 transition-colors">
-              <input
-                type="checkbox"
-                checked={form.isPaidAd}
-                onChange={(e) => setForm((prev) => ({ ...prev, isPaidAd: e.target.checked }))}
-                className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-              />
-              <div>
-                <span className="text-sm font-medium text-gray-700">Paid Advertisement</span>
-                <p className="text-xs text-gray-500">Mark this post as a paid ad</p>
-              </div>
-            </label>
 
             <button
               type="submit"

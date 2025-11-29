@@ -5,13 +5,18 @@ import { prisma } from "@/lib/prisma"
 import { z } from "zod"
 import { PostStatus } from "@prisma/client"
 
+const scheduledTimeSchema = z.object({
+  time: z.string().datetime(),
+  isFree: z.boolean().default(false),
+})
+
 const createPostSchema = z.object({
   groupId: z.string(),
   content: z.string().min(1),
   mediaUrls: z.array(z.string()).optional().default([]),
   scheduledAt: z.string().datetime().optional(), // For backward compatibility
-  scheduledTimes: z.array(z.string().datetime()).min(1), // Multiple scheduled times
-  isPaidAd: z.boolean().default(false),
+  scheduledTimes: z.array(scheduledTimeSchema).min(1), // Multiple scheduled times with free flag
+  isPaidAd: z.boolean().optional().default(false), // Deprecated, kept for backward compatibility
   advertiserId: z.string().optional(),
   // Recurring scheduling
   isRecurring: z.boolean().optional().default(false),
@@ -110,9 +115,9 @@ export async function POST(request: NextRequest) {
 
   // Use scheduledTimes if provided, otherwise fall back to scheduledAt
   const timesToSchedule = scheduledTimes && scheduledTimes.length > 0 
-    ? scheduledTimes 
+    ? scheduledTimes.map((st) => ({ time: st.time, isFree: st.isFree || false }))
     : scheduledAt 
-      ? [scheduledAt] 
+      ? [{ time: scheduledAt, isFree: false }]
       : []
   
   if (timesToSchedule.length === 0) {
@@ -124,7 +129,7 @@ export async function POST(request: NextRequest) {
 
   // Validate that all scheduled times are in the future
   const now = new Date()
-  const pastTimes = timesToSchedule.filter((time) => new Date(time) <= now)
+  const pastTimes = timesToSchedule.filter((st) => new Date(st.time) <= now)
   if (pastTimes.length > 0) {
     return NextResponse.json(
       { error: "Cannot schedule posts in the past. Please select future dates and times." },
@@ -228,18 +233,33 @@ export async function POST(request: NextRequest) {
   // Check if user owns the group or is posting as advertiser
   const isGroupOwner = group.userId === session.user.id
   
-  // If posting to another user's group, it must be a paid ad
-  // If posting to own group, it can be either own post or paid ad
-  let finalIsPaidAd = isPaidAd
-  let finalAdvertiserId = advertiserId
+  // Determine if this is a paid ad
+  // If posting to another user's group:
+  //   - If group is free (pricePerPost === 0), it's not a paid ad
+  //   - If group is paid (pricePerPost > 0) and no times marked as free, it's a paid ad
+  //   - If group is paid and some times marked as free, only non-free times are paid
+  // If posting to own group, it's not a paid ad
+  let finalIsPaidAd = false
+  let finalAdvertiserId: string | null = null
   
   if (!isGroupOwner) {
-    // User is posting to someone else's group - must be a paid ad
-    finalIsPaidAd = true
-    finalAdvertiserId = session.user.id // The current user is the advertiser
+    const isFreeGroup = group.pricePerPost === 0
+    
+    if (!isFreeGroup) {
+      // Paid group - check if any scheduled time is marked as free
+      const hasFreeTimes = timesToSchedule.some(st => st.isFree)
+      const hasPaidTimes = timesToSchedule.some(st => !st.isFree)
+      
+      if (hasPaidTimes) {
+        // Has paid times, so this is a paid ad
+        finalIsPaidAd = true
+        finalAdvertiserId = session.user.id // The current user is the advertiser
+      }
+    }
+    // If free group, no paid ad (all posts are free)
   }
   
-  const isOwnPost = !finalIsPaidAd || !finalAdvertiserId
+  const isOwnPost = isGroupOwner
 
   // Only group owner can post their own posts (non-paid ads)
   if (isOwnPost && !isGroupOwner) {
@@ -296,20 +316,18 @@ export async function POST(request: NextRequest) {
 
   // Check if this is a free group (pricePerPost === 0)
   const isFreeGroup = group.pricePerPost === 0
+  const freePostIntervalDays = group.freePostIntervalDays || 0
   
-  // If paid ad, verify advertiser and check credits
-  // Note: Users can post in their own groups without credits
+  // Initialize creditsPaid
   let creditsPaid: number | null = null
   
-  // If free group and posting as advertiser (not owner), check quiet period
-  if (isFreeGroup && finalIsPaidAd && finalAdvertiserId && !isGroupOwner) {
-    const quietPeriodDays = group.freePostIntervalDays || 7
-    
+  // For free groups (pricePerPost === 0), all posts are free, but check quiet period if interval > 0
+  if (isFreeGroup && !isGroupOwner && freePostIntervalDays > 0) {
     // Find the most recent post by this advertiser in this group
     const lastPost = await prisma.telegramPost.findFirst({
       where: {
         groupId: groupId,
-        advertiserId: finalAdvertiserId,
+        advertiserId: session.user.id,
         status: { in: ["SCHEDULED", "SENT"] },
       },
       orderBy: {
@@ -332,17 +350,17 @@ export async function POST(request: NextRequest) {
         : new Date(lastPost.scheduledAt)
       
       // Get the earliest scheduled time from the new post
-      const earliestNewTime = new Date(Math.min(...timesToSchedule.map(t => new Date(t).getTime())))
+      const earliestNewTime = new Date(Math.min(...timesToSchedule.map(st => new Date(st.time).getTime())))
       
       // Calculate days between last post and new post
       const daysSinceLastPost = (earliestNewTime.getTime() - lastScheduledTime.getTime()) / (1000 * 60 * 60 * 24)
       
-      if (daysSinceLastPost < quietPeriodDays) {
-        const daysRemaining = Math.ceil(quietPeriodDays - daysSinceLastPost)
+      if (daysSinceLastPost < freePostIntervalDays) {
+        const daysRemaining = Math.ceil(freePostIntervalDays - daysSinceLastPost)
         return NextResponse.json(
           { 
-            error: `Quiet period not met. You can post again in ${daysRemaining} day(s). This group requires ${quietPeriodDays} days between posts.`,
-            quietPeriodDays,
+            error: `Quiet period not met. You can post again in ${daysRemaining} day(s). This group requires ${freePostIntervalDays} days between posts.`,
+            quietPeriodDays: freePostIntervalDays,
             daysRemaining,
           },
           { status: 400 }
@@ -352,51 +370,111 @@ export async function POST(request: NextRequest) {
     
     // For free groups, no credits needed
     creditsPaid = 0
-  } else if (!isFreeGroup && finalIsPaidAd && finalAdvertiserId && !isGroupOwner) {
-    // If paid ad (non-free group), verify advertiser and check credits
-    const advertiser = await prisma.user.findUnique({
-      where: { id: finalAdvertiserId },
-    })
-
-    if (!advertiser) {
-      return NextResponse.json({ error: "Advertiser not found" }, { status: 404 })
-    }
-
-    const price = group.pricePerPost
+  }
+  
+  // For paid groups (pricePerPost > 0), check free post eligibility for scheduled times marked as free
+  if (!isFreeGroup && !isGroupOwner && freePostIntervalDays > 0) {
+    const freeTimes = timesToSchedule.filter(st => st.isFree)
     
-    // Check if advertiser has enough credits
-    if (advertiser.credits < price) {
-      return NextResponse.json(
-        { error: "Advertiser has insufficient credits" },
-        { status: 400 }
-      )
+    if (freeTimes.length > 0) {
+      // Check if user can use free post
+      const lastFreePost = await prisma.scheduledPostTime.findFirst({
+        where: {
+          post: {
+            groupId: groupId,
+            advertiserId: session.user.id,
+          },
+          isFreePost: true,
+          status: { in: ["SCHEDULED", "SENT"] },
+        },
+        orderBy: {
+          scheduledAt: "desc",
+        },
+      })
+      
+      if (lastFreePost) {
+        const daysSinceLastFreePost = (new Date().getTime() - new Date(lastFreePost.scheduledAt).getTime()) / (1000 * 60 * 60 * 24)
+        
+        if (daysSinceLastFreePost < freePostIntervalDays) {
+          const daysRemaining = Math.ceil(freePostIntervalDays - daysSinceLastFreePost)
+          return NextResponse.json(
+            {
+              error: `You can schedule a free post once per ${freePostIntervalDays} days. Your next free post will be available in ${daysRemaining} day(s).`,
+              daysRemaining,
+              freePostIntervalDays,
+            },
+            { status: 400 }
+          )
+        }
+      }
+      
+      // Only allow one free post per period
+      if (freeTimes.length > 1) {
+        return NextResponse.json(
+          {
+            error: `You can only schedule one free post per ${freePostIntervalDays} days. Please mark only one scheduled time as free.`,
+          },
+          { status: 400 }
+        )
+      }
     }
-
-    // Deduct credits and create transaction
-    await prisma.$transaction(async (tx) => {
-      await tx.user.update({
+  }
+  
+  // If paid ad, verify advertiser and check credits
+  // Note: Users can post in their own groups without credits
+  // For free groups, creditsPaid is already set to 0 above
+  
+  // For paid groups, check credits for non-free scheduled times
+  if (!isFreeGroup && finalIsPaidAd && finalAdvertiserId && !isGroupOwner) {
+    // If paid ad (non-free group), verify advertiser and check credits
+    // Count how many paid times (non-free) we have
+    const paidTimes = timesToSchedule.filter(st => !st.isFree)
+    
+    if (paidTimes.length > 0) {
+      const advertiser = await prisma.user.findUnique({
         where: { id: finalAdvertiserId },
-        data: {
-          credits: { decrement: price },
-        },
       })
 
-      await tx.creditTransaction.create({
-        data: {
-          userId: finalAdvertiserId,
-          amount: -price,
-          type: "SPENT",
-          relatedPostId: null, // Will update after post creation
-          relatedGroupId: groupId,
-          description: `Paid ad in group: ${group.name}`,
-        },
-      })
+      if (!advertiser) {
+        return NextResponse.json({ error: "Advertiser not found" }, { status: 404 })
+      }
 
-      // Group owner earns credits (minus commission)
-      const owner = group.user
-      const commissionPercent = owner.revenueSharePercent || 0.2 // Default 20%
-      const ownerEarnings = Math.floor(price * (1 - commissionPercent))
-      const commission = price - ownerEarnings
+      const price = group.pricePerPost
+      const totalPrice = price * paidTimes.length
+      
+      // Check if advertiser has enough credits
+      if (advertiser.credits < totalPrice) {
+        return NextResponse.json(
+          { error: `Advertiser has insufficient credits. Need ${totalPrice} credits for ${paidTimes.length} paid post(s).` },
+          { status: 400 }
+        )
+      }
+
+      // Deduct credits and create transaction
+      await prisma.$transaction(async (tx) => {
+        await tx.user.update({
+          where: { id: finalAdvertiserId },
+          data: {
+            credits: { decrement: totalPrice },
+          },
+        })
+
+        await tx.creditTransaction.create({
+          data: {
+            userId: finalAdvertiserId,
+            amount: -totalPrice,
+            type: "SPENT",
+            relatedPostId: null, // Will update after post creation
+            relatedGroupId: groupId,
+            description: `Paid ad in group: ${group.name} (${paidTimes.length} post(s))`,
+          },
+        })
+
+        // Group owner earns credits (minus commission)
+        const owner = group.user
+        const commissionPercent = owner.revenueSharePercent || 0.2 // Default 20%
+        const ownerEarnings = Math.floor(totalPrice * (1 - commissionPercent))
+        const commission = totalPrice - ownerEarnings
 
       await tx.user.update({
         where: { id: owner.id },
@@ -431,22 +509,23 @@ export async function POST(request: NextRequest) {
         })
       }
 
-      await tx.telegramGroup.update({
-        where: { id: groupId },
-        data: {
-          totalRevenue: { increment: ownerEarnings },
-        },
-      })
+        await tx.telegramGroup.update({
+          where: { id: groupId },
+          data: {
+            totalRevenue: { increment: ownerEarnings },
+          },
+        })
 
-      creditsPaid = price
-    })
+        creditsPaid = totalPrice
+      })
+    }
   }
 
   // Create post and update free posts counter if it's a free post
   const post = await prisma.$transaction(async (tx) => {
     const ownerId = group.userId
     // Use first scheduled time as primary scheduledAt (for backward compatibility)
-    const primaryScheduledAt = new Date(timesToSchedule[0])
+    const primaryScheduledAt = new Date(timesToSchedule[0].time)
     
     // Calculate next occurrence for recurring posts
     let nextOccurrence: Date | null = null
@@ -493,10 +572,12 @@ export async function POST(request: NextRequest) {
         recurrenceCount: recurrenceCount || null,
         nextOccurrence,
         // Create scheduled times for each time slot
+        // For free groups, all posts are free. For paid groups, use the isFree flag.
         scheduledTimes: {
-          create: timesToSchedule.map((timeStr) => ({
-            scheduledAt: new Date(timeStr),
+          create: timesToSchedule.map((st) => ({
+            scheduledAt: new Date(st.time),
             status: PostStatus.SCHEDULED,
+            isFreePost: isFreeGroup ? true : st.isFree, // Free groups are always free
           })),
         },
       },
