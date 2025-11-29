@@ -36,26 +36,29 @@ export default function AppPage() {
   const [loading, setLoading] = useState(true)
   const [showCreditModal, setShowCreditModal] = useState(false)
   const [pendingCreditRequests, setPendingCreditRequests] = useState(0)
+  const [myCreditRequests, setMyCreditRequests] = useState<any[]>([])
 
   useEffect(() => {
     // Wait for session status to be determined before loading stats
     if (status === "loading") {
+      setLoading(true) // Keep loading state while session is loading
       return // Still loading, don't do anything
     }
     if (session?.user) {
       loadStats()
-    } else if (status === "unauthenticated") {
+    } else {
       setLoading(false) // User is not authenticated, stop loading
     }
   }, [session, status])
 
   const loadStats = async () => {
     try {
-      const [creditsRes, groupsRes, postsRes, creditRequestsRes] = await Promise.all([
+      const [creditsRes, groupsRes, postsRes, creditRequestsRes, myRequestsRes] = await Promise.all([
         fetch("/api/credits/balance", { credentials: "include" }),
         fetch("/api/groups", { credentials: "include" }),
         fetch("/api/posts", { credentials: "include" }),
         fetch("/api/groups/credit-requests?status=PENDING", { credentials: "include" }),
+        fetch("/api/credits/my-requests", { credentials: "include" }),
       ])
 
       const credits = creditsRes.ok ? (await creditsRes.json()).credits || 0 : 0
@@ -69,9 +72,13 @@ export default function AppPage() {
       // Calculate revenue from groups (totalRevenue field)
       const totalRevenue = groups.reduce((sum: number, g: any) => sum + (g.totalRevenue || 0), 0)
 
-      // Get pending credit requests count
+      // Get pending credit requests count (for group owners)
       const creditRequestsData = creditRequestsRes.ok ? await creditRequestsRes.json() : { pendingCount: 0 }
       setPendingCreditRequests(creditRequestsData.pendingCount || 0)
+
+      // Get user's own credit request history
+      const myRequestsData = myRequestsRes.ok ? await myRequestsRes.json() : { requests: [] }
+      setMyCreditRequests(myRequestsData.requests || [])
 
       setStats({
         credits,
@@ -134,7 +141,8 @@ export default function AppPage() {
   }
 
   // Only show "sign in" message if we're sure user is not authenticated
-  if (status === "unauthenticated" || !session?.user) {
+  // Don't show it if session is still loading
+  if (status === "unauthenticated") {
     return (
       <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-gray-50 via-white to-gray-50">
         <div className="text-center">
@@ -146,6 +154,18 @@ export default function AppPage() {
           >
             Sign In
           </Link>
+        </div>
+      </div>
+    )
+  }
+
+  // If we get here and no session, show loading (session might still be initializing)
+  if (!session?.user) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-gray-50 via-white to-gray-50">
+        <div className="text-center">
+          <div className="mb-4 text-4xl">⏳</div>
+          <p className="text-gray-600">Loading...</p>
         </div>
       </div>
     )
@@ -422,6 +442,58 @@ export default function AppPage() {
           </div>
         </div>
       </div>
+
+      {/* My Credit Requests History */}
+      {myCreditRequests.length > 0 && (
+        <section className="rounded-2xl border border-gray-200 bg-white p-6 shadow-lg">
+          <h2 className="text-xl font-bold text-gray-900 mb-4">My Credit Requests</h2>
+          <div className="space-y-3">
+            {myCreditRequests.slice(0, 5).map((request: any) => (
+              <div
+                key={request.id}
+                className="rounded-lg border border-gray-200 bg-gray-50 p-4"
+              >
+                <div className="flex items-start justify-between">
+                  <div className="flex-1">
+                    <div className="flex items-center space-x-2 mb-2">
+                      <span className="text-sm font-semibold text-gray-900">
+                        {request.amount} credits
+                      </span>
+                      <span
+                        className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold ${
+                          request.status === "APPROVED"
+                            ? "bg-green-100 text-green-800"
+                            : request.status === "REJECTED"
+                              ? "bg-red-100 text-red-800"
+                              : "bg-yellow-100 text-yellow-800"
+                        }`}
+                      >
+                        {request.status}
+                      </span>
+                    </div>
+                    {request.groupOwner && (
+                      <p className="text-xs text-gray-500">
+                        Requested from: {request.groupOwner.name || request.groupOwner.telegramUsername || "Group Owner"}
+                      </p>
+                    )}
+                    {request.reason && (
+                      <p className="text-xs text-gray-600 mt-1">{request.reason}</p>
+                    )}
+                    <p className="text-xs text-gray-400 mt-2">
+                      {format(new Date(request.createdAt), "MMM d, yyyy 'at' h:mm a")}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            ))}
+            {myCreditRequests.length > 5 && (
+              <p className="text-xs text-gray-500 text-center">
+                Showing 5 of {myCreditRequests.length} requests
+              </p>
+            )}
+          </div>
+        </section>
+      )}
 
       {/* Credit Request Modal */}
       <CreditRequestModal
