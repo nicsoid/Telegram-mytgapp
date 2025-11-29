@@ -231,22 +231,39 @@ export async function POST(request: NextRequest) {
     )
   }
 
-  // For group owner's own posts, check free posts or subscription
+  // For group owner's own posts, check subscription (required for scheduling)
+  // Users can post unlimited posts with credits, but group owner needs subscription to schedule posts
   if (isOwnPost && isGroupOwner) {
     const user = group.user
-    const hasFreePosts = user.freePostsUsed < user.freePostsLimit
-    const hasActiveSubscription = user.subscriptions.length > 0 || 
-                                  (user.subscriptionStatus === "ACTIVE" && 
+    const hasActiveSubscription = user.subscriptions.length > 0 ||
+                                  (user.subscriptionStatus === "ACTIVE" &&
                                    user.subscriptionTier !== "FREE" &&
-                                   (!user.subscriptionExpiresAt || user.subscriptionExpiresAt > new Date()))
+                                   (!user.subscriptionExpiresAt || new Date(user.subscriptionExpiresAt) > new Date()))
 
-    if (!hasFreePosts && !hasActiveSubscription) {
+    if (!hasActiveSubscription) {
       return NextResponse.json(
-        { 
-          error: "No free posts remaining. Please subscribe to continue posting.",
+        {
+          error: "Group owner must have an active subscription to schedule posts. Please subscribe to continue posting.",
           requiresSubscription: true,
-          freePostsUsed: user.freePostsUsed,
-          freePostsLimit: user.freePostsLimit,
+        },
+        { status: 403 }
+      )
+    }
+  }
+
+  // For paid ads (advertiser posting to someone else's group), check if group owner has subscription
+  if (isPaidAd && advertiserId && !isGroupOwner) {
+    const user = group.user
+    const hasActiveSubscription = user.subscriptions.length > 0 ||
+                                  (user.subscriptionStatus === "ACTIVE" &&
+                                   user.subscriptionTier !== "FREE" &&
+                                   (!user.subscriptionExpiresAt || new Date(user.subscriptionExpiresAt) > new Date()))
+
+    if (!hasActiveSubscription) {
+      return NextResponse.json(
+        {
+          error: "This group's owner does not have an active subscription. Posts cannot be scheduled to this group at this time.",
+          requiresSubscription: true,
         },
         { status: 403 }
       )

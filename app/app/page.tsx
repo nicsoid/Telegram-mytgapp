@@ -501,6 +501,7 @@ export default function AppPage() {
         onClose={() => setShowCreditModal(false)}
         onSubmit={handleRequestCredits}
         currentCredits={stats.credits}
+        allowUsernameInput={true}
       />
     </div>
   )

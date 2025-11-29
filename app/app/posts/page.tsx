@@ -64,7 +64,11 @@ export default function AppPostsPage() {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState<string | null>(null)
   const [newScheduledTime, setNewScheduledTime] = useState("")
 
-  const verifiedGroups = useMemo(() => groups.filter((g) => g.isVerified), [groups])
+  // Filter groups: must be verified AND owner must have active subscription
+  const verifiedGroups = useMemo(() => 
+    groups.filter((g) => g.isVerified && (g as any).ownerHasActiveSubscription), 
+    [groups]
+  )
 
   useEffect(() => {
     // Wait for session status to be determined
@@ -84,13 +88,40 @@ export default function AppPostsPage() {
   }, [session, status])
 
   const loadGroups = async () => {
-    const res = await fetch("/api/groups", { credentials: "include" })
-    if (res.ok) {
-      const data = await res.json()
-      setGroups(data.groups || [])
-      const firstVerified = data.groups?.find((g: TelegramGroup) => g.isVerified)
-      if (firstVerified && !form.groupId) {
-        setForm((prev) => ({ ...prev, groupId: firstVerified.id }))
+    // Load user's own groups
+    const ownGroupsRes = await fetch("/api/groups", { credentials: "include" })
+    // Load browseable groups (for posting ads)
+    const browseRes = await fetch("/api/groups/browse", { credentials: "include" })
+    
+    if (ownGroupsRes.ok) {
+      const ownData = await ownGroupsRes.json()
+      const ownGroups = (ownData.groups || []).map((g: any) => ({
+        ...g,
+        ownerHasActiveSubscription: g.user?.subscriptions?.length > 0 || 
+          (g.user?.subscriptionStatus === "ACTIVE" && 
+           g.user?.subscriptionTier !== "FREE" &&
+           (!g.user?.subscriptionExpiresAt || new Date(g.user.subscriptionExpiresAt) > new Date()))
+      }))
+      
+      if (browseRes.ok) {
+        const browseData = await browseRes.json()
+        // Merge own groups with browseable groups, prioritizing own groups
+        const allGroups = [...ownGroups, ...(browseData.groups || [])]
+        // Remove duplicates by id
+        const uniqueGroups = Array.from(
+          new Map(allGroups.map((g: any) => [g.id, g])).values()
+        )
+        setGroups(uniqueGroups)
+        const firstVerified = uniqueGroups.find((g: any) => g.isVerified && g.ownerHasActiveSubscription)
+        if (firstVerified && !form.groupId) {
+          setForm((prev) => ({ ...prev, groupId: firstVerified.id }))
+        }
+      } else {
+        setGroups(ownGroups)
+        const firstVerified = ownGroups.find((g: any) => g.isVerified && g.ownerHasActiveSubscription)
+        if (firstVerified && !form.groupId) {
+          setForm((prev) => ({ ...prev, groupId: firstVerified.id }))
+        }
       }
     }
   }
@@ -382,28 +413,70 @@ export default function AppPostsPage() {
                       </p>
                       {/* Show all scheduled times with their statuses */}
                       {post.scheduledTimes && post.scheduledTimes.length > 0 && (
-                        <div className="mt-3 space-y-1">
-                          {post.scheduledTimes.map((st) => (
-                            <div key={st.id} className="flex items-center justify-between text-xs">
-                              <span className="text-gray-600">
-                                {format(new Date(st.scheduledAt), "MMM d, yyyy 'at' h:mm a")}
-                              </span>
-                              <span
-                                className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold ${
-                                  st.status === "SENT"
-                                    ? "bg-green-100 text-green-800"
-                                    : st.status === "FAILED"
-                                      ? "bg-red-100 text-red-800"
-                                      : st.status === "SCHEDULED"
-                                        ? "bg-blue-100 text-blue-800"
-                                        : "bg-gray-100 text-gray-800"
-                                }`}
-                              >
-                                {st.status === "SENT" && "✓ "}
-                                {st.status}
-                              </span>
-                            </div>
-                          ))}
+                        <div className="mt-3 space-y-2">
+                          {post.scheduledTimes.map((st) => {
+                            const isPast = new Date(st.scheduledAt) < new Date()
+                            const canDelete = !isPast && st.status === "SCHEDULED"
+                            
+                            return (
+                              <div key={st.id} className="flex items-center justify-between rounded-lg border border-gray-200 bg-gray-50 p-2 text-xs">
+                                <div className="flex items-center space-x-2">
+                                  <span className="text-gray-600">
+                                    {format(new Date(st.scheduledAt), "MMM d, yyyy 'at' h:mm a")}
+                                  </span>
+                                  {isPast && (
+                                    <span className="text-gray-400">(Past)</span>
+                                  )}
+                                </div>
+                                <div className="flex items-center space-x-2">
+                                  <span
+                                    className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold ${
+                                      st.status === "SENT"
+                                        ? "bg-green-100 text-green-800"
+                                        : st.status === "FAILED"
+                                          ? "bg-red-100 text-red-800"
+                                          : st.status === "SCHEDULED"
+                                            ? "bg-blue-100 text-blue-800"
+                                            : "bg-gray-100 text-gray-800"
+                                    }`}
+                                  >
+                                    {st.status === "SENT" && "✓ "}
+                                    {st.status}
+                                  </span>
+                                  {canDelete && (
+                                    <button
+                                      onClick={async () => {
+                                        if (confirm("Delete this scheduled time?")) {
+                                          try {
+                                            const res = await fetch(`/api/scheduled-times/${st.id}`, {
+                                              method: "DELETE",
+                                              credentials: "include",
+                                            })
+                                            if (res.ok) {
+                                              setMessage("✅ Scheduled time deleted")
+                                              setTimeout(() => setMessage(null), 3000)
+                                              loadPosts()
+                                            } else {
+                                              const data = await res.json()
+                                              setMessage(data.error || "Failed to delete scheduled time")
+                                            }
+                                          } catch (error) {
+                                            setMessage("Failed to delete scheduled time")
+                                          }
+                                        }
+                                      }}
+                                      className="text-red-600 hover:text-red-800 transition-colors"
+                                      title="Delete this scheduled time"
+                                    >
+                                      <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                      </svg>
+                                    </button>
+                                  )}
+                                </div>
+                              </div>
+                            )
+                          })}
                         </div>
                       )}
                       {post.mediaUrls.length > 0 && (
@@ -540,7 +613,7 @@ export default function AppPostsPage() {
                 required
               >
                 <option value="" disabled>
-                  {verifiedGroups.length === 0 ? "No verified groups yet" : "Choose a group..."}
+                  {verifiedGroups.length === 0 ? "No available groups (subscription required)" : "Choose a group..."}
                 </option>
                 {verifiedGroups.map((group) => (
                   <option key={group.id} value={group.id}>
@@ -550,7 +623,7 @@ export default function AppPostsPage() {
               </select>
               {verifiedGroups.length === 0 && (
                 <p className="mt-2 text-xs text-red-600">
-                  ⚠️ Verify at least one group before scheduling posts
+                  ⚠️ No groups available for scheduling. Group owners need active subscriptions to allow post scheduling.
                 </p>
               )}
               {form.groupId && (() => {

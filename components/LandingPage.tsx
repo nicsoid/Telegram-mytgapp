@@ -2,6 +2,7 @@
 
 import Link from "next/link"
 import { useSession, signOut } from "next-auth/react"
+import GroupCatalog from "@/components/GroupCatalog"
 
 export default function LandingPage() {
   const { data: session, status } = useSession()
@@ -171,8 +172,21 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* Features Section */}
-      <section className="py-20 bg-white">
+             {/* Group Catalog Section */}
+             <section className="py-20 bg-gray-50">
+               <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                 <div className="text-center mb-16">
+                   <h2 className="text-4xl font-bold text-gray-900 mb-4">Browse Available Groups</h2>
+                   <p className="text-xl text-gray-600 max-w-2xl mx-auto">
+                     Discover Telegram groups where you can post your ads. Request credits from group owners to get started.
+                   </p>
+                 </div>
+                 <GroupCatalog />
+               </div>
+             </section>
+
+             {/* Features Section */}
+             <section className="py-20 bg-white">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-16">
             <h2 className="text-4xl font-bold text-gray-900 mb-4">

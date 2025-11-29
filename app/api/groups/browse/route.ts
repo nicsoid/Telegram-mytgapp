@@ -21,6 +21,16 @@ export async function GET(request: NextRequest) {
           id: true,
           name: true,
           telegramUsername: true,
+          subscriptionTier: true,
+          subscriptionStatus: true,
+          subscriptionExpiresAt: true,
+          subscriptions: {
+            where: {
+              status: "ACTIVE",
+              tier: { not: "FREE" },
+            },
+            select: { id: true, tier: true },
+          },
         },
       },
     },
@@ -29,6 +39,20 @@ export async function GET(request: NextRequest) {
     },
   })
 
-  return NextResponse.json({ groups })
+  // Add subscription status to each group
+  const groupsWithSubscription = groups.map((group) => {
+    const user = group.user
+    const hasActiveSubscription = user.subscriptions.length > 0 ||
+                                  (user.subscriptionStatus === "ACTIVE" &&
+                                   user.subscriptionTier !== "FREE" &&
+                                   (!user.subscriptionExpiresAt || new Date(user.subscriptionExpiresAt) > new Date()))
+    
+    return {
+      ...group,
+      ownerHasActiveSubscription: hasActiveSubscription,
+    }
+  })
+
+  return NextResponse.json({ groups: groupsWithSubscription })
 }
 

@@ -175,14 +175,8 @@ export async function DELETE(
       return NextResponse.json({ error: "Unauthorized" }, { status: 403 })
     }
 
-    // Can't delete sent posts (for audit trail)
-    if (post.status === "SENT") {
-      return NextResponse.json(
-        { error: "Cannot delete sent posts" },
-        { status: 400 }
-      )
-    }
-
+    // Delete the post - this will cascade delete all scheduled times
+    // Past times are kept in stats, but when post is deleted, all times are deleted
     await prisma.telegramPost.delete({
       where: { id: postId },
     })

@@ -7,6 +7,9 @@ interface CreditRequestModalProps {
   onClose: () => void
   onSubmit: (amount: number, reason?: string, groupOwnerId?: string, groupId?: string) => Promise<void>
   currentCredits?: number
+  preselectedGroupOwnerId?: string // Pre-select a group owner
+  preselectedGroupId?: string // Pre-select a group
+  allowUsernameInput?: boolean // Allow typing username instead of selecting from dropdown
 }
 
 export default function CreditRequestModal({
@@ -14,26 +17,71 @@ export default function CreditRequestModal({
   onClose,
   onSubmit,
   currentCredits = 0,
+  preselectedGroupOwnerId,
+  preselectedGroupId,
+  allowUsernameInput = false,
 }: CreditRequestModalProps) {
   const [amount, setAmount] = useState("")
   const [reason, setReason] = useState("")
-  const [groupOwnerId, setGroupOwnerId] = useState("")
-  const [groupId, setGroupId] = useState("")
+  const [groupOwnerId, setGroupOwnerId] = useState(preselectedGroupOwnerId || "")
+  const [groupId, setGroupId] = useState(preselectedGroupId || "")
+  const [usernameInput, setUsernameInput] = useState("")
+  const [searchingUser, setSearchingUser] = useState(false)
   const [groupOwners, setGroupOwners] = useState<any[]>([])
   const [loadingGroupOwners, setLoadingGroupOwners] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [useUsernameInput, setUseUsernameInput] = useState(allowUsernameInput)
 
   useEffect(() => {
     if (isOpen) {
       setAmount("")
       setReason("")
-      setGroupOwnerId("")
-      setGroupId("")
+      setGroupOwnerId(preselectedGroupOwnerId || "")
+      setGroupId(preselectedGroupId || "")
+      setUsernameInput("")
       setError(null)
-      fetchGroupOwners()
+      if (!preselectedGroupOwnerId && !useUsernameInput) {
+        fetchGroupOwners()
+      }
     }
-  }, [isOpen])
+  }, [isOpen, preselectedGroupOwnerId, preselectedGroupId, useUsernameInput])
+
+  const searchUserByUsername = async (username: string) => {
+    if (!username.trim()) {
+      setError("Please enter a username")
+      return
+    }
+
+    setSearchingUser(true)
+    setError(null)
+    try {
+      // Remove @ if present
+      const cleanUsername = username.replace(/^@/, "")
+      
+      // Search for user by telegram username
+      const res = await fetch(`/api/users/search?username=${encodeURIComponent(cleanUsername)}`, {
+        credentials: "include",
+      })
+      
+      if (res.ok) {
+        const data = await res.json()
+        if (data.user) {
+          setGroupOwnerId(data.user.id)
+          setError(null)
+        } else {
+          setError("User not found. Please check the username and try again.")
+        }
+      } else {
+        const data = await res.json()
+        setError(data.error || "Failed to find user")
+      }
+    } catch (error) {
+      setError("Failed to search for user")
+    } finally {
+      setSearchingUser(false)
+    }
+  }
 
   const fetchGroupOwners = async () => {
     setLoadingGroupOwners(true)
@@ -165,36 +213,88 @@ export default function CreditRequestModal({
           )}
 
           <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-2">
-              Select Group Owner <span className="text-red-500">*</span>
-            </label>
-            {loadingGroupOwners ? (
-              <div className="rounded-lg border border-gray-300 bg-gray-50 px-4 py-3 text-sm text-gray-500">
-                Loading group owners...
+            <div className="flex items-center justify-between mb-2">
+              <label className="block text-sm font-semibold text-gray-700">
+                Group Owner <span className="text-red-500">*</span>
+              </label>
+              {!preselectedGroupOwnerId && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setUseUsernameInput(!useUsernameInput)
+                    setGroupOwnerId("")
+                    setGroupId("")
+                    setUsernameInput("")
+                    setError(null)
+                  }}
+                  className="text-xs text-blue-600 hover:text-blue-800"
+                >
+                  {useUsernameInput ? "Select from list" : "Search by username"}
+                </button>
+              )}
+            </div>
+            
+            {preselectedGroupOwnerId ? (
+              <div className="rounded-lg border border-gray-300 bg-gray-50 px-4 py-3 text-sm text-gray-700">
+                Pre-selected for this group
               </div>
-            ) : groupOwners.length === 0 ? (
-              <div className="rounded-lg border border-yellow-300 bg-yellow-50 px-4 py-3 text-sm text-yellow-700">
-                No group owners available. Users need to add groups first.
+            ) : useUsernameInput ? (
+              <div className="space-y-2">
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={usernameInput}
+                    onChange={(e) => setUsernameInput(e.target.value)}
+                    placeholder="@username or username"
+                    className="flex-1 rounded-lg border border-gray-300 px-4 py-3 text-sm transition-all focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
+                    disabled={submitting || searchingUser}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => searchUserByUsername(usernameInput)}
+                    disabled={submitting || searchingUser || !usernameInput.trim()}
+                    className="rounded-lg bg-blue-600 px-4 py-3 text-sm font-semibold text-white transition-all hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {searchingUser ? "Searching..." : "Search"}
+                  </button>
+                </div>
+                {groupOwnerId && (
+                  <div className="rounded-lg border border-green-300 bg-green-50 px-4 py-3 text-sm text-green-700">
+                    ✓ User found and selected
+                  </div>
+                )}
               </div>
             ) : (
-              <select
-                value={groupOwnerId}
-                onChange={(e) => {
-                  setGroupOwnerId(e.target.value)
-                  setGroupId("") // Reset group selection when owner changes
-                  setError(null)
-                }}
-                className="w-full rounded-lg border border-gray-300 px-4 py-3 text-sm transition-all focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
-                required
-                disabled={submitting}
-              >
-                <option value="">Select a group owner...</option>
-                {groupOwners.map((owner) => (
-                  <option key={owner.id} value={owner.id}>
-                    {owner.name} ({owner.groups.length} group{owner.groups.length !== 1 ? 's' : ''})
-                  </option>
-                ))}
-              </select>
+              <>
+                {loadingGroupOwners ? (
+                  <div className="rounded-lg border border-gray-300 bg-gray-50 px-4 py-3 text-sm text-gray-500">
+                    Loading group owners...
+                  </div>
+                ) : groupOwners.length === 0 ? (
+                  <div className="rounded-lg border border-yellow-300 bg-yellow-50 px-4 py-3 text-sm text-yellow-700">
+                    No group owners available. Users need to add groups first.
+                  </div>
+                ) : (
+                  <select
+                    value={groupOwnerId}
+                    onChange={(e) => {
+                      setGroupOwnerId(e.target.value)
+                      setGroupId("") // Reset group selection when owner changes
+                      setError(null)
+                    }}
+                    className="w-full rounded-lg border border-gray-300 px-4 py-3 text-sm transition-all focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
+                    required
+                    disabled={submitting}
+                  >
+                    <option value="">Select a group owner...</option>
+                    {groupOwners.map((owner) => (
+                      <option key={owner.id} value={owner.id}>
+                        {owner.name} ({owner.groups.length} group{owner.groups.length !== 1 ? 's' : ''})
+                      </option>
+                    ))}
+                  </select>
+                )}
+              </>
             )}
           </div>
 

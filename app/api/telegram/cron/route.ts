@@ -64,6 +64,24 @@ export async function GET(request: NextRequest) {
               select: {
                 telegramChatId: true,
                 name: true,
+                userId: true,
+              },
+              include: {
+                user: {
+                  select: {
+                    id: true,
+                    subscriptionTier: true,
+                    subscriptionStatus: true,
+                    subscriptionExpiresAt: true,
+                    subscriptions: {
+                      where: {
+                        status: "ACTIVE",
+                        tier: { not: "FREE" },
+                      },
+                      select: { id: true },
+                    },
+                  },
+                },
               },
             },
           },
@@ -84,6 +102,7 @@ export async function GET(request: NextRequest) {
         const captionHtml = convertRichTextToTelegram(post.content || "")
         const chatId = post.group.telegramChatId
         const mediaUrls = post.mediaUrls || []
+        const groupOwner = post.group.user
 
         // Skip posts for groups without chat ID (not verified yet)
         if (!chatId) {
@@ -91,6 +110,21 @@ export async function GET(request: NextRequest) {
           await prisma.scheduledPostTime.update({
             where: { id: scheduledTime.id },
             data: { status: PostStatus.FAILED, failureReason: "Group not verified" },
+          })
+          continue
+        }
+
+        // Check if group owner has active subscription (required for posts to be sent)
+        const hasActiveSubscription = groupOwner.subscriptions.length > 0 ||
+                                      (groupOwner.subscriptionStatus === "ACTIVE" &&
+                                       groupOwner.subscriptionTier !== "FREE" &&
+                                       (!groupOwner.subscriptionExpiresAt || new Date(groupOwner.subscriptionExpiresAt) > new Date()))
+
+        if (!hasActiveSubscription) {
+          results.errors.push(`Post ${post.id}: Group owner ${post.group.name} does not have active subscription`)
+          await prisma.scheduledPostTime.update({
+            where: { id: scheduledTime.id },
+            data: { status: PostStatus.FAILED, failureReason: "Group owner subscription required" },
           })
           continue
         }
