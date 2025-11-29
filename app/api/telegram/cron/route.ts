@@ -74,18 +74,9 @@ export async function GET(request: NextRequest) {
         post: {
           include: {
             group: {
-              select: {
-                telegramChatId: true,
-                name: true,
-                userId: true,
-              },
               include: {
                 user: {
-                  select: {
-                    id: true,
-                    subscriptionTier: true,
-                    subscriptionStatus: true,
-                    subscriptionExpiresAt: true,
+                  include: {
                     subscriptions: {
                       where: {
                         status: "ACTIVE",
@@ -128,7 +119,7 @@ export async function GET(request: NextRequest) {
         }
 
         // Check if group owner has active subscription (required for posts to be sent)
-        const hasActiveSubscription = groupOwner.subscriptions.length > 0 ||
+        const hasActiveSubscription = (groupOwner.subscriptions && groupOwner.subscriptions.length > 0) ||
                                       (groupOwner.subscriptionStatus === "ACTIVE" &&
                                        groupOwner.subscriptionTier !== "FREE" &&
                                        (!groupOwner.subscriptionExpiresAt || new Date(groupOwner.subscriptionExpiresAt) > new Date()))

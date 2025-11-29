@@ -8,6 +8,7 @@ const updatePostSchema = z.object({
   content: z.string().min(1).optional(),
   mediaUrls: z.array(z.string()).optional(),
   scheduledAt: z.string().datetime().optional(),
+  scheduledTimes: z.array(z.string().datetime()).optional(),
   status: z.nativeEnum(PostStatus).optional(),
 })
 
@@ -114,9 +115,33 @@ export async function PATCH(
     }
     if (data.status !== undefined) updateData.status = data.status
 
+    // Handle scheduledTimes update
+    let scheduledTimesToCreate: { scheduledAt: Date }[] | null = null
+    if (data.scheduledTimes !== undefined && Array.isArray(data.scheduledTimes)) {
+      // Delete existing scheduled times that are still SCHEDULED (keep SENT ones for stats)
+      await prisma.scheduledPostTime.deleteMany({
+        where: {
+          postId: postId,
+          status: PostStatus.SCHEDULED,
+        },
+      })
+
+      // Create new scheduled times
+      scheduledTimesToCreate = data.scheduledTimes.map((time) => ({
+        scheduledAt: new Date(time),
+      }))
+    }
+
     const updatedPost = await prisma.telegramPost.update({
       where: { id: postId },
-      data: updateData,
+      data: {
+        ...updateData,
+        ...(scheduledTimesToCreate && {
+          scheduledTimes: {
+            create: scheduledTimesToCreate,
+          },
+        }),
+      },
       include: {
         group: {
           select: {
@@ -124,6 +149,9 @@ export async function PATCH(
             name: true,
             username: true,
           },
+        },
+        scheduledTimes: {
+          orderBy: { scheduledAt: "asc" },
         },
       },
     })

@@ -9,7 +9,23 @@ PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 # Load environment variables from .env file if it exists
 if [ -f "$PROJECT_ROOT/.env" ]; then
-  export $(grep -v '^#' "$PROJECT_ROOT/.env" | xargs)
+  # Use a safer method to load .env that handles comments and special characters
+  # This method properly handles comments, empty lines, and values with spaces
+  set -a
+  while IFS= read -r line || [ -n "$line" ]; do
+    # Skip empty lines and lines that start with #
+    [[ -z "$line" || "$line" =~ ^[[:space:]]*# ]] && continue
+    # Remove inline comments (everything after # that's not in quotes)
+    # But preserve # inside quoted strings
+    line=$(echo "$line" | sed -E 's/(^|[^"'"'"'])#.*$/\1/')
+    # Skip if line is empty after removing comments
+    [[ -z "$line" ]] && continue
+    # Export the variable (only if it contains =)
+    if [[ "$line" =~ ^[[:space:]]*[A-Za-z_][A-Za-z0-9_]*= ]]; then
+      eval "export $line"
+    fi
+  done < "$PROJECT_ROOT/.env"
+  set +a
 fi
 
 # Get the app URL and cron secret from environment
