@@ -520,64 +520,63 @@ export default function AppPostsPage() {
                         {post.status === "SENT" && "✓ "}
                         {post.status}
                       </span>
-                      {post.status !== "SENT" && (
-                        <div className="flex gap-1">
-                          <button
-                            onClick={() => {
-                              // Duplicate post (copy without editing)
-                              setEditingPost(null) // Clear any existing edit
-                              setForm({
-                                ...initialPost,
-                                groupId: post.group.id,
-                                content: post.content,
-                                mediaUrls: post.mediaUrls,
-                                scheduledTimes: [], // Start with empty times, user can add new ones
-                              })
-                              // Scroll to form
-                              document.getElementById("post-form")?.scrollIntoView({ behavior: "smooth" })
-                            }}
-                            className="rounded px-2 py-1 text-xs text-blue-600 hover:bg-blue-50"
-                            title="Copy Post"
-                          >
-                            📋
-                          </button>
-                          <button
-                            onClick={() => {
-                              // Edit post
-                              setEditingPost(post)
-                              // Use scheduledTimes if available, otherwise use scheduledAt
-                              const times = post.scheduledTimes && post.scheduledTimes.length > 0
-                                ? post.scheduledTimes.map((st) => new Date(st.scheduledAt).toISOString().slice(0, 16))
-                                : [new Date(post.scheduledAt).toISOString().slice(0, 16)]
+                      <div className="flex gap-1">
+                        <button
+                          onClick={() => {
+                            // Duplicate post (copy without editing)
+                            setEditingPost(null) // Clear any existing edit
+                            setForm({
+                              ...initialPost,
+                              groupId: post.group.id,
+                              content: post.content,
+                              mediaUrls: post.mediaUrls,
+                              scheduledTimes: [], // Start with empty times, user can add new ones
+                            })
+                            // Scroll to form
+                            document.getElementById("post-form")?.scrollIntoView({ behavior: "smooth" })
+                          }}
+                          className="rounded px-2 py-1 text-xs text-blue-600 hover:bg-blue-50"
+                          title="Copy Post"
+                        >
+                          📋
+                        </button>
+                        <button
+                          onClick={() => {
+                            // Edit post - allow editing even if all times are sent
+                            setEditingPost(post)
+                            // Get only SCHEDULED times for editing (SENT times are kept for stats)
+                            const scheduledTimes = post.scheduledTimes?.filter((st) => st.status === "SCHEDULED") || []
+                            const times = scheduledTimes.length > 0
+                              ? scheduledTimes.map((st) => new Date(st.scheduledAt).toISOString().slice(0, 16))
+                              : [] // Start with empty if all times are sent, user can add new ones
                               
-                              setForm({
-                                groupId: post.group.id,
-                                content: post.content,
-                                mediaUrls: post.mediaUrls,
-                                scheduledTimes: times,
-                                isPaidAd: post.isPaidAd,
-                                isRecurring: false,
-                                recurrencePattern: "daily",
-                                recurrenceInterval: 1,
-                                recurrenceEndDate: "",
-                                recurrenceCount: undefined,
-                              })
-                              document.getElementById("post-form")?.scrollIntoView({ behavior: "smooth" })
-                            }}
-                            className="rounded px-2 py-1 text-xs text-green-600 hover:bg-green-50"
-                            title="Edit"
-                          >
-                            ✏️
-                          </button>
-                          <button
-                            onClick={() => setShowDeleteConfirm(post.id)}
-                            className="rounded px-2 py-1 text-xs text-red-600 hover:bg-red-50"
-                            title="Delete"
-                          >
-                            🗑️
-                          </button>
-                        </div>
-                      )}
+                            setForm({
+                              groupId: post.group.id,
+                              content: post.content,
+                              mediaUrls: post.mediaUrls,
+                              scheduledTimes: times,
+                              isPaidAd: post.isPaidAd,
+                              isRecurring: false,
+                              recurrencePattern: "daily",
+                              recurrenceInterval: 1,
+                              recurrenceEndDate: "",
+                              recurrenceCount: undefined,
+                            })
+                            document.getElementById("post-form")?.scrollIntoView({ behavior: "smooth" })
+                          }}
+                          className="rounded px-2 py-1 text-xs text-green-600 hover:bg-green-50"
+                          title="Edit Post"
+                        >
+                          ✏️
+                        </button>
+                        <button
+                          onClick={() => setShowDeleteConfirm(post.id)}
+                          className="rounded px-2 py-1 text-xs text-red-600 hover:bg-red-50"
+                          title="Delete"
+                        >
+                          🗑️
+                        </button>
+                      </div>
                     </div>
                   </div>
                 </div>

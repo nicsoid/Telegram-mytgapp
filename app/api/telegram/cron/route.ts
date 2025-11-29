@@ -46,29 +46,19 @@ export async function GET(request: NextRequest) {
 
   try {
     const now = new Date()
-    const fiveMinutesFromNow = new Date(now.getTime() + 5 * 60 * 1000)
+    // Only send posts that are due at this exact minute (not all past-due posts)
+    // This prevents bulk sending of missed posts and matches uadeals behavior
+    const currentMinuteStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), now.getHours(), now.getMinutes(), 0, 0)
+    const currentMinuteEnd = new Date(currentMinuteStart.getTime() + 60 * 1000 - 1) // End of current minute (59.999 seconds)
 
-    // Find scheduled times that need to be sent:
-    // 1. Past due posts (scheduled in the past but not yet sent)
-    // 2. Posts scheduled in the next 5 minutes
+    // Find scheduled times that are due in the current minute only
     const scheduledTimesToSend = await prisma.scheduledPostTime.findMany({
       where: {
         status: PostStatus.SCHEDULED,
-        OR: [
-          // Past due posts (should have been sent already)
-          {
-            scheduledAt: {
-              lt: now,
-            },
-          },
-          // Posts scheduled in the next 5 minutes
-          {
-            scheduledAt: {
-              gte: now,
-              lte: fiveMinutesFromNow,
-            },
-          },
-        ],
+        scheduledAt: {
+          gte: currentMinuteStart,
+          lte: currentMinuteEnd,
+        },
       },
       include: {
         post: {
