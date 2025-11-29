@@ -8,6 +8,10 @@ const updateGroupSchema = z.object({
   freePostIntervalDays: z.number().int().min(1).max(365).optional(),
   advertiserMessage: z.string().max(1000).optional().nullable(),
   isActive: z.boolean().optional(),
+  // Sticky post settings
+  stickyPostsEnabled: z.boolean().optional(),
+  stickyPostPrice: z.number().int().min(0).optional().nullable(),
+  stickyPostPeriodDays: z.number().int().min(1).max(365).optional().nullable(),
 })
 
 export async function PATCH(
@@ -49,6 +53,11 @@ export async function PATCH(
       // Try to include it, but catch error if field doesn't exist
       updateData.advertiserMessage = data.advertiserMessage
     }
+    
+    // Sticky post settings
+    if (data.stickyPostsEnabled !== undefined) updateData.stickyPostsEnabled = data.stickyPostsEnabled
+    if (data.stickyPostPrice !== undefined) updateData.stickyPostPrice = data.stickyPostPrice
+    if (data.stickyPostPeriodDays !== undefined) updateData.stickyPostPeriodDays = data.stickyPostPeriodDays
 
     try {
       const updatedGroup = await prisma.telegramGroup.update({

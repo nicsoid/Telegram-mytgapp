@@ -14,6 +14,9 @@ type Group = {
   isVerified: boolean
   advertiserMessage: string | null
   ownerHasActiveSubscription: boolean
+  stickyPostsEnabled: boolean
+  stickyPostPrice: number | null
+  stickyPostPeriodDays: number | null
   user: {
     id: string
     name: string | null
@@ -153,6 +156,26 @@ export default function GroupCatalog() {
               <div className="flex items-center justify-between text-xs text-gray-500">
                 <span>Owner: {group.user.name || group.user.telegramUsername || "Unknown"}</span>
               </div>
+
+              {group.stickyPostsEnabled && group.stickyPostPrice && (
+                <div className="mb-3 rounded-lg bg-purple-50 border border-purple-200 p-3">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-xs font-semibold text-purple-900 mb-1">📌 Sticky Posts Available</p>
+                      <p className="text-xs text-purple-700">
+                        {group.stickyPostPrice} credits/day
+                        {group.stickyPostPeriodDays && ` (default: ${group.stickyPostPeriodDays} days)`}
+                      </p>
+                    </div>
+                    <Link
+                      href={`/app/sticky-posts/request?groupId=${group.id}`}
+                      className="rounded-lg bg-purple-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-purple-700 transition-colors"
+                    >
+                      Request Sticky
+                    </Link>
+                  </div>
+                </div>
+              )}
 
               <div className="flex gap-2 pt-2">
                 {session?.user ? (

@@ -23,10 +23,43 @@ export default function TelegramLayout({ children }: { children: React.ReactNode
           const checkAndAuth = () => {
             // Only attempt if we haven't already tried and session is not loading
             if ((status === "unauthenticated" || status === "loading") && !autoSignInAttempted) {
-              const initData = tg.initData || tg.initDataUnsafe
+              // Try multiple ways to get initData
+              let initData = tg.initData
+              if (!initData && tg.initDataUnsafe) {
+                // initDataUnsafe is an object, we need to convert it to a string
+                try {
+                  const params = new URLSearchParams()
+                  if (tg.initDataUnsafe.user) {
+                    params.set('user', JSON.stringify(tg.initDataUnsafe.user))
+                  }
+                  if (tg.initDataUnsafe.auth_date) {
+                    params.set('auth_date', tg.initDataUnsafe.auth_date.toString())
+                  }
+                  if (tg.initDataUnsafe.hash) {
+                    params.set('hash', tg.initDataUnsafe.hash)
+                  }
+                  if (tg.initDataUnsafe.query_id) {
+                    params.set('query_id', tg.initDataUnsafe.query_id)
+                  }
+                  initData = params.toString()
+                } catch (e) {
+                  console.error('[TelegramLayout] Error converting initDataUnsafe:', e)
+                }
+              }
+              
+              // Also try to get from window.location if available
+              if (!initData && typeof window !== "undefined") {
+                const urlParams = new URLSearchParams(window.location.search)
+                const tgInitData = urlParams.get('tgWebAppData') || urlParams.get('initData')
+                if (tgInitData) {
+                  initData = tgInitData
+                }
+              }
+              
               if (initData) {
                 console.log('[TelegramLayout] Auto-authenticating with Telegram WebApp initData')
                 console.log('[TelegramLayout] initData length:', initData.length)
+                console.log('[TelegramLayout] initData preview:', initData.substring(0, 100))
                 setAutoSignInAttempted(true)
                 
                 // Auto-sign in with Telegram WebApp data
@@ -35,14 +68,15 @@ export default function TelegramLayout({ children }: { children: React.ReactNode
                   redirect: false,
                 })
                   .then((result) => {
+                    console.log('[TelegramLayout] Sign-in result:', result)
                     if (result?.error) {
                       console.error('[TelegramLayout] Auto-sign in failed:', result.error)
                       // Reset after delay to allow retry
                       setTimeout(() => {
                         setAutoSignInAttempted(false)
-                      }, 2000)
+                      }, 3000)
                     } else if (result?.ok) {
-                      console.log('[TelegramLayout] Auto-sign in successful')
+                      console.log('[TelegramLayout] Auto-sign in successful, reloading page...')
                       // Force a page refresh to ensure session is established
                       setTimeout(() => {
                         window.location.reload()
@@ -52,7 +86,7 @@ export default function TelegramLayout({ children }: { children: React.ReactNode
                       // Reset after delay to allow retry
                       setTimeout(() => {
                         setAutoSignInAttempted(false)
-                      }, 2000)
+                      }, 3000)
                     }
                   })
                   .catch((error) => {
@@ -60,18 +94,19 @@ export default function TelegramLayout({ children }: { children: React.ReactNode
                     // Reset after delay to allow retry
                     setTimeout(() => {
                       setAutoSignInAttempted(false)
-                    }, 2000)
+                    }, 3000)
                   })
               } else {
                 console.warn('[TelegramLayout] Telegram WebApp detected but no initData available')
                 console.log('[TelegramLayout] Available WebApp properties:', Object.keys(tg))
                 console.log('[TelegramLayout] tg.initData:', tg.initData)
                 console.log('[TelegramLayout] tg.initDataUnsafe:', tg.initDataUnsafe)
+                console.log('[TelegramLayout] tg.version:', tg.version)
                 // If no initData, wait a bit and try again (script might still be loading)
                 if (status === "loading") {
                   setTimeout(() => {
                     setAutoSignInAttempted(false)
-                  }, 1000)
+                  }, 2000)
                 }
               }
             }
@@ -80,14 +115,16 @@ export default function TelegramLayout({ children }: { children: React.ReactNode
           // Try immediately
           checkAndAuth()
           
-          // Also try after delays in case session is still initializing
+          // Also try after delays in case session is still initializing or initData becomes available
           const timeout1 = setTimeout(checkAndAuth, 500)
           const timeout2 = setTimeout(checkAndAuth, 1500)
           const timeout3 = setTimeout(checkAndAuth, 3000)
+          const timeout4 = setTimeout(checkAndAuth, 5000)
           return () => {
             clearTimeout(timeout1)
             clearTimeout(timeout2)
             clearTimeout(timeout3)
+            clearTimeout(timeout4)
           }
         }
       }

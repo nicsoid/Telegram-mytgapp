@@ -19,6 +19,9 @@ type Group = {
   totalPostsScheduled: number
   totalPostsSent: number
   totalRevenue: number
+  stickyPostsEnabled: boolean
+  stickyPostPrice: number | null
+  stickyPostPeriodDays: number | null
   createdAt: string
 }
 
@@ -43,6 +46,9 @@ export default function GroupsManager() {
     freePostIntervalDays: "",
     advertiserMessage: "",
     isActive: true,
+    stickyPostsEnabled: false,
+    stickyPostPrice: "",
+    stickyPostPeriodDays: "",
   })
 
   useEffect(() => {
@@ -71,6 +77,9 @@ export default function GroupsManager() {
       freePostIntervalDays: group.freePostIntervalDays.toString(),
       advertiserMessage: group.advertiserMessage || "",
       isActive: group.isActive,
+      stickyPostsEnabled: group.stickyPostsEnabled || false,
+      stickyPostPrice: group.stickyPostPrice?.toString() || "",
+      stickyPostPeriodDays: group.stickyPostPeriodDays?.toString() || "",
     })
   }
 
@@ -90,6 +99,9 @@ export default function GroupsManager() {
           freePostIntervalDays: parseInt(editFormData.freePostIntervalDays),
           advertiserMessage: editFormData.advertiserMessage || null,
           isActive: editFormData.isActive,
+          stickyPostsEnabled: editFormData.stickyPostsEnabled,
+          stickyPostPrice: editFormData.stickyPostPrice ? parseInt(editFormData.stickyPostPrice) : null,
+          stickyPostPeriodDays: editFormData.stickyPostPeriodDays ? parseInt(editFormData.stickyPostPeriodDays) : null,
         }),
       })
 
@@ -432,6 +444,62 @@ export default function GroupsManager() {
                 <label htmlFor="isActive" className="ml-2 text-sm font-medium text-gray-700">
                   Group is active (allow posts)
                 </label>
+              </div>
+
+              <div className="border-t pt-4 mt-4">
+                <h3 className="text-lg font-semibold text-gray-900 mb-4">Sticky Post Settings</h3>
+                
+                <div className="flex items-center mb-4">
+                  <input
+                    type="checkbox"
+                    id="stickyPostsEnabled"
+                    checked={editFormData.stickyPostsEnabled}
+                    onChange={(e) => setEditFormData({ ...editFormData, stickyPostsEnabled: e.target.checked })}
+                    className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                  />
+                  <label htmlFor="stickyPostsEnabled" className="ml-2 text-sm font-medium text-gray-700">
+                    Enable sticky posts for this group
+                  </label>
+                </div>
+
+                {editFormData.stickyPostsEnabled && (
+                  <>
+                    <div className="mb-4">
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Sticky Post Price (credits per day)
+                      </label>
+                      <input
+                        type="number"
+                        min="0"
+                        value={editFormData.stickyPostPrice}
+                        onChange={(e) => setEditFormData({ ...editFormData, stickyPostPrice: e.target.value })}
+                        className="w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-blue-500"
+                        placeholder="e.g., 5"
+                      />
+                      <p className="mt-1 text-xs text-gray-500">
+                        Price per day for sticky posts. Total cost = price × number of days.
+                      </p>
+                    </div>
+
+                    <div className="mb-4">
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Default Sticky Post Period (days)
+                      </label>
+                      <input
+                        type="number"
+                        min="1"
+                        max="365"
+                        value={editFormData.stickyPostPeriodDays}
+                        onChange={(e) => setEditFormData({ ...editFormData, stickyPostPeriodDays: e.target.value })}
+                        className="w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-blue-500"
+                        placeholder="e.g., 7"
+                      />
+                      <p className="mt-1 text-xs text-gray-500">
+                        Default period shown to users (they can request different periods).
+                      </p>
+                    </div>
+                  </>
+                )}
               </div>
 
               <div className="flex justify-end space-x-3 pt-4">

@@ -14,6 +14,7 @@ export default function TelegramMiniAppPage() {
   const [showCreditModal, setShowCreditModal] = useState(false)
   const [groups, setGroups] = useState<any[]>([])
   const [groupsLoading, setGroupsLoading] = useState(true)
+  const [showAuthError, setShowAuthError] = useState(false)
 
   useEffect(() => {
     if (session?.user) {
@@ -81,19 +82,25 @@ export default function TelegramMiniAppPage() {
   }
 
   // Show loading state while checking authentication
-  // Give auto-auth time to complete (up to 3 seconds)
+  // Give auto-auth time to complete (up to 8 seconds)
   const [authTimeout, setAuthTimeout] = useState(false)
   
   useEffect(() => {
-    if (status === "loading") {
+    const isInTelegram = typeof window !== "undefined" && (window as any).Telegram?.WebApp
+    if (status === "loading" || (status === "unauthenticated" && isInTelegram)) {
       const timer = setTimeout(() => {
-        setAuthTimeout(true)
-      }, 3000)
+        // Check session outside the closure to avoid TypeScript issues
+        if (status === "unauthenticated" || !session || !(session as any).user) {
+          setAuthTimeout(true)
+          setShowAuthError(true)
+        }
+      }, 8000)
       return () => clearTimeout(timer)
     } else {
       setAuthTimeout(false)
+      setShowAuthError(false)
     }
-  }, [status])
+  }, [status, session])
 
   if (status === "loading" && !authTimeout) {
     return (
@@ -111,8 +118,36 @@ export default function TelegramMiniAppPage() {
     // Check if we're in Telegram WebApp
     const isInTelegram = typeof window !== "undefined" && (window as any).Telegram?.WebApp
     
-    // If in Telegram, wait longer for auto-auth to complete (up to 5 seconds)
+    // If in Telegram, wait longer for auto-auth to complete (up to 8 seconds)
     if (isInTelegram && (status === "loading" || status === "unauthenticated")) {
+      if (showAuthError) {
+        return (
+          <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 px-4">
+            <div className="text-center max-w-md">
+              <div className="mb-4 text-4xl">⚠️</div>
+              <p className="text-gray-600 mb-2">Authentication Issue</p>
+              <p className="text-sm text-gray-500 mb-4">
+                We're having trouble signing you in automatically. This might be because:
+              </p>
+              <ul className="text-sm text-gray-500 mb-4 text-left list-disc list-inside space-y-1">
+                <li>The bot token is not configured correctly</li>
+                <li>Your Telegram account is not verified</li>
+                <li>There was an error during authentication</li>
+              </ul>
+              <button
+                onClick={() => window.location.reload()}
+                className="rounded-lg bg-blue-600 px-4 py-2 text-white font-medium hover:bg-blue-700 transition-colors"
+              >
+                Refresh Page
+              </button>
+              <p className="mt-4 text-xs text-gray-400">
+                Check the browser console for error messages
+              </p>
+            </div>
+          </div>
+        )
+      }
+      
       return (
         <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 px-4">
           <div className="text-center">
