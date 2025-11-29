@@ -21,10 +21,24 @@ type SubscriptionInfo = {
   } | null
 }
 
+type PricingInfo = {
+  monthly: {
+    amount: number
+    currency: string
+    interval: string
+  } | null
+  revenueShare: {
+    percent?: number
+    amount?: number
+    currency?: string
+  } | null
+}
+
 export default function SubscriptionsPage() {
   const { data: session, status } = useSession()
   const router = useRouter()
   const [subscriptionInfo, setSubscriptionInfo] = useState<SubscriptionInfo | null>(null)
+  const [pricingInfo, setPricingInfo] = useState<PricingInfo | null>(null)
   const [loading, setLoading] = useState(true)
   const [canceling, setCanceling] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
@@ -36,10 +50,10 @@ export default function SubscriptionsPage() {
       return
     }
     loadSubscriptionInfo()
+    loadPricingInfo()
   }, [session, status, router])
 
   const loadSubscriptionInfo = async () => {
-    setLoading(true)
     try {
       const res = await fetch("/api/subscriptions/me", { credentials: "include" })
       if (res.ok) {
@@ -48,6 +62,19 @@ export default function SubscriptionsPage() {
       }
     } catch (error) {
       console.error("Failed to load subscription info", error)
+    }
+  }
+
+  const loadPricingInfo = async () => {
+    setLoading(true)
+    try {
+      const res = await fetch("/api/subscriptions/pricing", { credentials: "include" })
+      if (res.ok) {
+        const data = await res.json()
+        setPricingInfo(data.pricing)
+      }
+    } catch (error) {
+      console.error("Failed to load pricing info", error)
     } finally {
       setLoading(false)
     }
@@ -250,7 +277,18 @@ export default function SubscriptionsPage() {
               </p>
             </div>
             <div className="mb-4">
-              <div className="text-3xl font-bold text-gray-900">$9.99</div>
+              <div className="text-3xl font-bold text-gray-900">
+                {pricingInfo?.monthly ? (
+                  <>
+                    {new Intl.NumberFormat("en-US", {
+                      style: "currency",
+                      currency: pricingInfo.monthly.currency.toUpperCase() || "USD",
+                    }).format(pricingInfo.monthly.amount)}
+                  </>
+                ) : (
+                  "$9.99"
+                )}
+              </div>
               <div className="text-sm text-gray-500">per month</div>
             </div>
             <ul className="mb-6 space-y-2 text-sm text-gray-600">
@@ -291,7 +329,9 @@ export default function SubscriptionsPage() {
               </p>
             </div>
             <div className="mb-4">
-              <div className="text-3xl font-bold text-gray-900">20%</div>
+              <div className="text-3xl font-bold text-gray-900">
+                {pricingInfo?.revenueShare?.percent || 20}%
+              </div>
               <div className="text-sm text-gray-500">revenue share</div>
             </div>
             <ul className="mb-6 space-y-2 text-sm text-gray-600">
