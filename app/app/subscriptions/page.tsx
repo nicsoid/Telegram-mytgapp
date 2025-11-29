@@ -27,11 +27,6 @@ type PricingInfo = {
     currency: string
     interval: string
   } | null
-  revenueShare: {
-    percent?: number
-    amount?: number
-    currency?: string
-  } | null
 }
 
 export default function SubscriptionsPage() {
@@ -80,7 +75,7 @@ export default function SubscriptionsPage() {
     }
   }
 
-  const handleSubscribe = async (tier: "MONTHLY" | "REVENUE_SHARE") => {
+  const handleSubscribe = async (tier: "MONTHLY") => {
     try {
       const res = await fetch("/api/subscriptions/create-checkout", {
         method: "POST",
@@ -236,14 +231,6 @@ export default function SubscriptionsPage() {
                     </div>
                   </div>
                 )}
-                {subscriptionInfo.activeSubscription.revenueSharePercent && (
-                  <div>
-                    <div className="text-xs text-gray-500">Revenue Share</div>
-                    <div className="text-sm font-medium text-gray-900">
-                      {(subscriptionInfo.activeSubscription.revenueSharePercent * 100).toFixed(0)}%
-                    </div>
-                  </div>
-                )}
               </div>
             )}
 
@@ -267,17 +254,17 @@ export default function SubscriptionsPage() {
       {/* Subscription Plans */}
       <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-lg">
         <h2 className="text-xl font-bold text-gray-900 mb-6">Available Plans</h2>
-        <div className="grid gap-6 md:grid-cols-2">
+        <div className="max-w-md mx-auto">
           {/* Monthly Plan */}
-          <div className="rounded-xl border-2 border-gray-200 bg-white p-6">
-            <div className="mb-4">
-              <h3 className="text-lg font-bold text-gray-900">Monthly Plan</h3>
-              <p className="mt-1 text-sm text-gray-600">
+          <div className="rounded-xl border-2 border-blue-200 bg-gradient-to-br from-blue-50 to-indigo-50 p-8">
+            <div className="mb-6 text-center">
+              <h3 className="text-2xl font-bold text-gray-900 mb-2">Monthly Plan</h3>
+              <p className="text-sm text-gray-600">
                 Fixed monthly fee for unlimited post scheduling
               </p>
             </div>
-            <div className="mb-4">
-              <div className="text-3xl font-bold text-gray-900">
+            <div className="mb-6 text-center">
+              <div className="text-4xl font-bold text-gray-900 mb-1">
                 {pricingInfo?.monthly ? (
                   <>
                     {new Intl.NumberFormat("en-US", {
@@ -291,73 +278,36 @@ export default function SubscriptionsPage() {
               </div>
               <div className="text-sm text-gray-500">per month</div>
             </div>
-            <ul className="mb-6 space-y-2 text-sm text-gray-600">
+            <ul className="mb-8 space-y-3 text-sm text-gray-600">
               <li className="flex items-center">
-                <svg className="h-5 w-5 text-green-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="h-5 w-5 text-green-500 mr-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                 </svg>
                 Unlimited post scheduling
               </li>
               <li className="flex items-center">
-                <svg className="h-5 w-5 text-green-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="h-5 w-5 text-green-500 mr-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                 </svg>
                 Schedule posts to your groups
               </li>
               <li className="flex items-center">
-                <svg className="h-5 w-5 text-green-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="h-5 w-5 text-green-500 mr-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                 </svg>
                 Full group management features
+              </li>
+              <li className="flex items-center">
+                <svg className="h-5 w-5 text-green-500 mr-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+                Earn from paid advertisements in your groups
               </li>
             </ul>
             <button
               onClick={() => handleSubscribe("MONTHLY")}
               disabled={hasActiveSubscription}
-              className="w-full rounded-lg bg-gradient-to-r from-blue-600 to-indigo-600 px-4 py-3 text-sm font-semibold text-white shadow-sm transition-all hover:from-blue-700 hover:to-indigo-700 hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {hasActiveSubscription ? "Current Plan" : "Subscribe Now"}
-            </button>
-          </div>
-
-          {/* Revenue Share Plan */}
-          <div className="rounded-xl border-2 border-purple-200 bg-gradient-to-br from-purple-50 to-indigo-50 p-6">
-            <div className="mb-4">
-              <h3 className="text-lg font-bold text-gray-900">Revenue Share Plan</h3>
-              <p className="mt-1 text-sm text-gray-600">
-                Earn from paid ads in your groups
-              </p>
-            </div>
-            <div className="mb-4">
-              <div className="text-3xl font-bold text-gray-900">
-                {pricingInfo?.revenueShare?.percent || 20}%
-              </div>
-              <div className="text-sm text-gray-500">revenue share</div>
-            </div>
-            <ul className="mb-6 space-y-2 text-sm text-gray-600">
-              <li className="flex items-center">
-                <svg className="h-5 w-5 text-green-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                </svg>
-                Unlimited post scheduling
-              </li>
-              <li className="flex items-center">
-                <svg className="h-5 w-5 text-green-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                </svg>
-                Earn from paid advertisements
-              </li>
-              <li className="flex items-center">
-                <svg className="h-5 w-5 text-green-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                </svg>
-                Full group management features
-              </li>
-            </ul>
-            <button
-              onClick={() => handleSubscribe("REVENUE_SHARE")}
-              disabled={hasActiveSubscription}
-              className="w-full rounded-lg bg-gradient-to-r from-purple-600 to-indigo-600 px-4 py-3 text-sm font-semibold text-white shadow-sm transition-all hover:from-purple-700 hover:to-indigo-700 hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full rounded-lg bg-gradient-to-r from-blue-600 to-indigo-600 px-6 py-3 text-base font-semibold text-white shadow-lg transition-all hover:from-blue-700 hover:to-indigo-700 hover:shadow-xl hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
             >
               {hasActiveSubscription ? "Current Plan" : "Subscribe Now"}
             </button>

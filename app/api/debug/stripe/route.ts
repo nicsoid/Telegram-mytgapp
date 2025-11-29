@@ -2,12 +2,12 @@ import { NextRequest, NextResponse } from "next/server"
 import { stripe } from "@/lib/stripe"
 
 // Debug endpoint to test Stripe configuration
-// Only accessible in development or with proper auth
 export async function GET(request: NextRequest) {
-  // In production, you might want to add auth check here
-  if (process.env.NODE_ENV === 'production') {
-    return NextResponse.json({ error: "Not available in production" }, { status: 403 })
-  }
+  // Allow in production for debugging (you can add auth check if needed)
+  // const session = await auth()
+  // if (!session?.user || session.user.role !== 'ADMIN') {
+  //   return NextResponse.json({ error: "Unauthorized" }, { status: 403 })
+  // }
 
   const debugInfo: any = {
     stripeConfigured: !!stripe,

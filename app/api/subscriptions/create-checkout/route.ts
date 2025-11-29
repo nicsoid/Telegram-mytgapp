@@ -5,15 +5,15 @@ import { stripe } from "@/lib/stripe"
 import { z } from "zod"
 
 const checkoutSchema = z.object({
-  tier: z.enum(["FREE", "MONTHLY", "REVENUE_SHARE"]),
+  tier: z.enum(["FREE", "MONTHLY"]),
   successUrl: z.string().url(),
   cancelUrl: z.string().url(),
 })
 
 // Stripe Price IDs for subscription tiers
+// Support both naming conventions for backward compatibility
 const SUBSCRIPTION_PRICE_IDS = {
-  MONTHLY: process.env.STRIPE_MONTHLY_PRICE_ID || "",
-  REVENUE_SHARE: process.env.STRIPE_REVENUE_SHARE_PRICE_ID || "",
+  MONTHLY: process.env.STRIPE_MONTHLY_PRICE_ID || process.env.SUBSCRIPTION_STRIPE_PRICE_ID || "",
 }
 
 export async function POST(request: NextRequest) {
@@ -178,7 +178,7 @@ export async function POST(request: NextRequest) {
       if (stripeError?.code === 'resource_missing' && stripeError?.param === 'price') {
         return NextResponse.json(
           { 
-            error: `Price ID not found: ${priceId}. Please check your STRIPE_MONTHLY_PRICE_ID or STRIPE_REVENUE_SHARE_PRICE_ID in environment variables.`,
+            error: `Price ID not found: ${priceId}. Please check your STRIPE_MONTHLY_PRICE_ID or SUBSCRIPTION_STRIPE_PRICE_ID in environment variables.`,
             details: "The Stripe price ID does not exist or is incorrect. Verify it in your Stripe Dashboard and ensure it matches your test/live mode.",
             debug: {
               priceId: priceId,
