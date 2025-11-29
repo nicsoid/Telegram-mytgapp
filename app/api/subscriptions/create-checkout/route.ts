@@ -47,7 +47,7 @@ export async function POST(request: NextRequest) {
 
     if (!stripe) {
       return NextResponse.json(
-        { error: "Stripe not configured" },
+        { error: "Stripe not configured. Please check STRIPE_SECRET_KEY in environment variables." },
         { status: 500 }
       )
     }

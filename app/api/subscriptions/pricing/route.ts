@@ -29,12 +29,18 @@ export async function GET(request: NextRequest) {
           currency: price.currency || "usd",
           interval: price.recurring?.interval || "month",
         }
-      } catch (error) {
-        console.error("Failed to fetch monthly price:", error)
+      } catch (error: any) {
+        // Log error but don't fail - use fallback
+        console.error("Failed to fetch monthly price from Stripe:", error?.message || error)
+        // If it's an authentication error, the API key is likely wrong
+        if (error?.type === 'StripeAuthenticationError') {
+          console.error("⚠️ Stripe API key appears to be invalid. Check STRIPE_SECRET_KEY in .env")
+        }
       }
     }
 
-    // Fetch revenue share plan pricing
+    // Fetch revenue share plan pricing (if it's a paid subscription)
+    // Note: Revenue share might not have a Stripe price if it's just a percentage
     if (revenueSharePriceId) {
       try {
         const price = await stripe.prices.retrieve(revenueSharePriceId)
@@ -44,8 +50,10 @@ export async function GET(request: NextRequest) {
           currency: price.currency || "usd",
           interval: price.recurring?.interval || "month",
         }
-      } catch (error) {
-        console.error("Failed to fetch revenue share price:", error)
+      } catch (error: any) {
+        // If revenue share price doesn't exist or API key is invalid, skip it
+        // Revenue share is typically just a percentage, not a Stripe price
+        console.error("Failed to fetch revenue share price:", error?.message || error)
       }
     }
 
