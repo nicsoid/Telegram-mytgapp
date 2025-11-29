@@ -151,8 +151,23 @@ export default function GroupCatalog() {
             <div className="space-y-3">
               <div className="flex items-center justify-between text-sm">
                 <span className="text-gray-600">Price per post:</span>
-                <span className="font-bold text-blue-600">{group.pricePerPost} credits</span>
+                {group.pricePerPost === 0 ? (
+                  <span className="font-bold text-green-600">FREE</span>
+                ) : (
+                  <span className="font-bold text-blue-600">{group.pricePerPost} credits</span>
+                )}
               </div>
+              {group.pricePerPost === 0 && (group as any).freePostIntervalDays && (
+                <div className="rounded-lg bg-green-50 border border-green-200 p-2">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-green-700 font-medium">⏱️ Quiet period:</span>
+                    <span className="text-green-900 font-semibold">{(group as any).freePostIntervalDays} days</span>
+                  </div>
+                  <p className="text-xs text-green-600 mt-1">
+                    You can schedule posts with at least {(group as any).freePostIntervalDays} days between them
+                  </p>
+                </div>
+              )}
               <div className="flex items-center justify-between text-xs text-gray-500">
                 <span>Owner: {group.user.name || group.user.telegramUsername || "Unknown"}</span>
               </div>

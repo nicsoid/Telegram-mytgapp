@@ -284,10 +284,66 @@ export async function POST(request: NextRequest) {
     }
   }
 
+  // Check if this is a free group (pricePerPost === 0)
+  const isFreeGroup = group.pricePerPost === 0
+  
   // If paid ad, verify advertiser and check credits
   // Note: Users can post in their own groups without credits
   let creditsPaid: number | null = null
-  if (finalIsPaidAd && finalAdvertiserId && !isGroupOwner) {
+  
+  // If free group and posting as advertiser (not owner), check quiet period
+  if (isFreeGroup && finalIsPaidAd && finalAdvertiserId && !isGroupOwner) {
+    const quietPeriodDays = group.freePostIntervalDays || 7
+    
+    // Find the most recent post by this advertiser in this group
+    const lastPost = await prisma.telegramPost.findFirst({
+      where: {
+        groupId: groupId,
+        advertiserId: finalAdvertiserId,
+        status: { in: ["SCHEDULED", "SENT"] },
+      },
+      orderBy: {
+        scheduledAt: "desc",
+      },
+      include: {
+        scheduledTimes: {
+          orderBy: {
+            scheduledAt: "desc",
+          },
+          take: 1,
+        },
+      },
+    })
+    
+    if (lastPost) {
+      // Get the most recent scheduled time (either from scheduledTimes or scheduledAt)
+      const lastScheduledTime = lastPost.scheduledTimes?.[0]?.scheduledAt 
+        ? new Date(lastPost.scheduledTimes[0].scheduledAt)
+        : new Date(lastPost.scheduledAt)
+      
+      // Get the earliest scheduled time from the new post
+      const earliestNewTime = new Date(Math.min(...timesToSchedule.map(t => new Date(t).getTime())))
+      
+      // Calculate days between last post and new post
+      const daysSinceLastPost = (earliestNewTime.getTime() - lastScheduledTime.getTime()) / (1000 * 60 * 60 * 24)
+      
+      if (daysSinceLastPost < quietPeriodDays) {
+        const daysRemaining = Math.ceil(quietPeriodDays - daysSinceLastPost)
+        return NextResponse.json(
+          { 
+            error: `Quiet period not met. You can post again in ${daysRemaining} day(s). This group requires ${quietPeriodDays} days between posts.`,
+            quietPeriodDays,
+            daysRemaining,
+          },
+          { status: 400 }
+        )
+      }
+    }
+    
+    // For free groups, no credits needed
+    creditsPaid = 0
+  } else if (!isFreeGroup && finalIsPaidAd && finalAdvertiserId && !isGroupOwner) {
+    // If paid ad (non-free group), verify advertiser and check credits
     const advertiser = await prisma.user.findUnique({
       where: { id: finalAdvertiserId },
     })

@@ -649,7 +649,7 @@ function AppPostsPageContent() {
                 </option>
                 {verifiedGroups.map((group) => (
                   <option key={group.id} value={group.id}>
-                    {group.name} {group.pricePerPost > 0 && `(${group.pricePerPost} credits/post)`}
+                    {group.name} {group.pricePerPost === 0 ? "(FREE)" : `(${group.pricePerPost} credits/post)`}
                   </option>
                 ))}
               </select>

@@ -49,10 +49,11 @@ export async function GET(request: NextRequest) {
     
     return {
       ...group,
-      ownerHasActiveSubscription: hasActiveSubscription,
-      stickyPostsEnabled: group.stickyPostsEnabled || false,
-      stickyPostPrice: group.stickyPostPrice,
-      stickyPostPeriodDays: group.stickyPostPeriodDays,
+        ownerHasActiveSubscription: hasActiveSubscription,
+        stickyPostsEnabled: group.stickyPostsEnabled || false,
+        stickyPostPrice: group.stickyPostPrice,
+        stickyPostPeriodDays: group.stickyPostPeriodDays,
+        freePostIntervalDays: group.freePostIntervalDays,
     }
   })
 
