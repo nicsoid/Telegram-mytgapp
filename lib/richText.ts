@@ -75,16 +75,17 @@ function applyTagFormatting(text: string, target: RichTextTarget) {
 
 function convertRichText(text: string, target: RichTextTarget) {
   if (!text) return ""
-  // Telegram HTML doesn't support self-closing tags like <br/>, use <br> instead
-  const lineBreak = target === "web" ? "<br />" : "<br>"
+  // For Telegram, use newlines directly instead of <br> tags
+  // Telegram HTML parse mode doesn't support <br> tags well
+  const lineBreak = target === "web" ? "<br />" : "\n"
   let result = escapeHtml(text)
   result = replaceLinkTags(result, target)
   result = applyTagFormatting(result, target)
   result = autoLink(result, target)
   result = result.replace(/\n/g, lineBreak)
-  // Also replace any existing <br/> tags with <br> for Telegram
+  // For Telegram, remove any <br> tags and use newlines instead
   if (target === "telegram") {
-    result = result.replace(/<br\s*\/?>/gi, "<br>")
+    result = result.replace(/<br\s*\/?>/gi, "\n")
   }
   return result
 }

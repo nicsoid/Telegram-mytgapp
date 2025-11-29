@@ -31,7 +31,13 @@ type TelegramPost = {
   scheduledAt: string
   status: string
   isPaidAd: boolean
+  advertiserId: string | null
   group: { id: string; name: string }
+  advertiser?: {
+    id: string
+    name: string | null
+    telegramUsername: string | null
+  } | null
   scheduledTimes?: ScheduledTime[] // Multiple scheduled times
 }
 
@@ -428,8 +434,15 @@ function AppPostsPageContent() {
                         <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-gradient-to-br from-green-500 to-emerald-500 text-white font-bold">
                           {post.group.name.charAt(0).toUpperCase()}
                         </div>
-                        <div>
-                          <h3 className="text-base font-semibold text-gray-900">{post.group.name}</h3>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <h3 className="text-base font-semibold text-gray-900">{post.group.name}</h3>
+                            {post.isPaidAd && post.advertiser && (
+                              <span className="inline-flex items-center rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-800">
+                                By: {post.advertiser.name || post.advertiser.telegramUsername || "Unknown"}
+                              </span>
+                            )}
+                          </div>
                           <p className="text-xs text-gray-500">
                             Primary: {format(new Date(post.scheduledAt), "MMM d, yyyy 'at' h:mm a")}
                           </p>
@@ -451,8 +464,8 @@ function AppPostsPageContent() {
                             const canDelete = !isPast && st.status === "SCHEDULED"
                             
                             return (
-                              <div key={st.id} className="flex items-center justify-between rounded-lg border border-gray-200 bg-gray-50 p-2 text-xs">
-                                <div className="flex items-center space-x-2">
+                              <div key={st.id} className="flex items-center justify-between rounded-lg border border-gray-200 bg-gray-50 p-2 text-xs flex-wrap gap-2">
+                                <div className="flex items-center space-x-2 flex-wrap">
                                   <span className="text-gray-600">
                                     {format(new Date(st.scheduledAt), "MMM d, yyyy 'at' h:mm a")}
                                   </span>
@@ -460,7 +473,7 @@ function AppPostsPageContent() {
                                     <span className="text-gray-400">(Past)</span>
                                   )}
                                 </div>
-                                <div className="flex items-center space-x-2">
+                                <div className="flex items-center space-x-2 flex-wrap">
                                   <span
                                     className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold ${
                                       st.status === "SENT"
@@ -561,10 +574,13 @@ function AppPostsPageContent() {
                             // Edit post - allow editing even if all times are sent
                             setEditingPost(post)
                             // Get only SCHEDULED times for editing (SENT times are kept for stats)
-                            const scheduledTimes = post.scheduledTimes?.filter((st) => st.status === "SCHEDULED") || []
-                            const times = scheduledTimes.length > 0
-                              ? scheduledTimes.map((st) => new Date(st.scheduledAt).toISOString().slice(0, 16))
-                              : [] // Start with empty if all times are sent, user can add new ones
+      const scheduledTimes = post.scheduledTimes?.filter((st) => st.status === "SCHEDULED") || []
+      const now = new Date()
+      const times = scheduledTimes.length > 0
+        ? scheduledTimes
+            .map((st) => new Date(st.scheduledAt).toISOString().slice(0, 16))
+            .filter((time) => new Date(time) > now) // Only include future times
+        : [] // Start with empty if all times are sent, user can add new ones
                               
                             setForm({
                               groupId: post.group.id,
@@ -694,18 +710,19 @@ function AppPostsPageContent() {
               )}
 
               {/* Add new scheduled time */}
-              <div className="flex gap-2">
+              <div className="flex gap-2 flex-col sm:flex-row">
                 <input
                   type="datetime-local"
                   value={newScheduledTime}
                   onChange={(e) => setNewScheduledTime(e.target.value)}
                   className="flex-1 rounded-lg border border-gray-300 px-4 py-2.5 text-sm transition-all focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
+                  min={new Date().toISOString().slice(0, 16)}
                 />
                 <button
                   type="button"
                   onClick={handleAddScheduledTime}
                   disabled={!newScheduledTime}
-                  className="rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white transition-all hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white transition-all hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
                 >
                   Add Time
                 </button>

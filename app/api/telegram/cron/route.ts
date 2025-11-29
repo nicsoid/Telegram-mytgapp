@@ -183,9 +183,14 @@ export async function GET(request: NextRequest) {
           continue
         }
 
+        // For Telegram, if we have newlines but no HTML tags, use plain text mode
+        // Otherwise use HTML mode but ensure no <br> tags
+        const hasHtmlTags = /<[a-z][\s\S]*>/i.test(captionHtml)
+        const parseMode = hasHtmlTags ? ("HTML" as const) : undefined
+        
         if (!mediaUrls.length) {
           await sendTelegramMessage(chatId, captionHtml, {
-            parseMode: "HTML",
+            parseMode: parseMode,
           })
         } else if (mediaUrls.length === 1) {
           const mediaUrl = mediaUrls[0]
@@ -194,12 +199,12 @@ export async function GET(request: NextRequest) {
           if (type === "video") {
             await sendTelegramVideo(chatId, mediaUrl, {
               caption,
-              parseMode: "HTML",
+              parseMode: parseMode,
             })
           } else {
             await sendTelegramPhoto(chatId, mediaUrl, {
               caption,
-              parseMode: "HTML",
+              parseMode: parseMode,
             })
           }
         } else {
@@ -208,7 +213,7 @@ export async function GET(request: NextRequest) {
             type: getMediaType(url),
             media: url,
             caption: index === 0 ? caption : undefined,
-            parse_mode: index === 0 ? ("HTML" as const) : undefined,
+            parse_mode: index === 0 ? parseMode : undefined,
           }))
           await sendTelegramMediaGroup(chatId, mediaItems)
         }

@@ -122,6 +122,16 @@ export async function POST(request: NextRequest) {
     )
   }
 
+  // Validate that all scheduled times are in the future
+  const now = new Date()
+  const pastTimes = timesToSchedule.filter((time) => new Date(time) <= now)
+  if (pastTimes.length > 0) {
+    return NextResponse.json(
+      { error: "Cannot schedule posts in the past. Please select future dates and times." },
+      { status: 400 }
+    )
+  }
+
   // If duplicating, fetch the original post
   let duplicatePost: any = null
   if (duplicateFrom) {
