@@ -111,49 +111,31 @@ export default function TelegramMiniAppPage() {
     // Check if we're in Telegram WebApp
     const isInTelegram = typeof window !== "undefined" && (window as any).Telegram?.WebApp
     
-    // If in Telegram, wait a bit longer for auto-auth to complete
-    if (isInTelegram && status === "loading") {
+    // If in Telegram, wait longer for auto-auth to complete (up to 5 seconds)
+    if (isInTelegram && (status === "loading" || status === "unauthenticated")) {
       return (
         <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 px-4">
           <div className="text-center">
             <div className="mb-4 text-4xl">⏳</div>
             <p className="text-gray-600">Authenticating...</p>
-            <p className="mt-2 text-sm text-gray-500">Please wait while we sign you in</p>
+            <p className="mt-2 text-sm text-gray-500">Please wait while we sign you in automatically</p>
+            <p className="mt-4 text-xs text-gray-400">
+              If this takes too long, try refreshing the page
+            </p>
           </div>
         </div>
       )
     }
     
+    // Not in Telegram - show message (but don't redirect to browser)
     return (
       <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 px-4">
         <div className="text-center max-w-md">
-          <div className="mb-4 text-4xl">🔐</div>
-          <p className="text-gray-600 mb-2">Authentication Required</p>
-          {isInTelegram ? (
-            <>
-              <p className="text-sm text-gray-500 mb-4">
-                We're having trouble authenticating you automatically. This might be because:
-              </p>
-              <ul className="text-sm text-gray-500 mb-4 text-left list-disc list-inside space-y-1">
-                <li>The bot token is not configured correctly</li>
-                <li>Your Telegram account is not verified</li>
-                <li>There was an error during authentication</li>
-              </ul>
-              <button
-                onClick={() => window.location.reload()}
-                className="rounded-lg bg-blue-600 px-4 py-2 text-white font-medium hover:bg-blue-700 transition-colors"
-              >
-                Refresh Page
-              </button>
-              <p className="mt-4 text-xs text-gray-400">
-                Check the browser console for error messages
-              </p>
-            </>
-          ) : (
-            <p className="text-sm text-gray-500">
-              Please open this app from Telegram to sign in automatically, or visit the web version to sign in manually.
-            </p>
-          )}
+          <div className="mb-4 text-4xl">📱</div>
+          <p className="text-gray-600 mb-2">Open in Telegram</p>
+          <p className="text-sm text-gray-500">
+            This app works best when opened from Telegram. Please open it from a Telegram bot or link.
+          </p>
         </div>
       </div>
     )

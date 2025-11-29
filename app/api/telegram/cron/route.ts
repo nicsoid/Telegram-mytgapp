@@ -48,14 +48,27 @@ export async function GET(request: NextRequest) {
     const now = new Date()
     const fiveMinutesFromNow = new Date(now.getTime() + 5 * 60 * 1000)
 
-    // Find scheduled times that need to be sent in the next 5 minutes
+    // Find scheduled times that need to be sent:
+    // 1. Past due posts (scheduled in the past but not yet sent)
+    // 2. Posts scheduled in the next 5 minutes
     const scheduledTimesToSend = await prisma.scheduledPostTime.findMany({
       where: {
         status: PostStatus.SCHEDULED,
-        scheduledAt: {
-          gte: now,
-          lte: fiveMinutesFromNow,
-        },
+        OR: [
+          // Past due posts (should have been sent already)
+          {
+            scheduledAt: {
+              lt: now,
+            },
+          },
+          // Posts scheduled in the next 5 minutes
+          {
+            scheduledAt: {
+              gte: now,
+              lte: fiveMinutesFromNow,
+            },
+          },
+        ],
       },
       include: {
         post: {

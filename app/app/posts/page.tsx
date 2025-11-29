@@ -264,10 +264,11 @@ export default function AppPostsPage() {
       })
       const data = await res.json()
       if (res.ok) {
+        const wasEditing = !!editingPost
         setForm((prev) => ({ ...initialPost, groupId: prev.groupId }))
         setEditingPost(null)
         setNewScheduledTime("")
-        setMessage(editingPost ? "✅ Post updated successfully!" : "✅ Post scheduled successfully!")
+        setMessage(wasEditing ? "✅ Post updated successfully!" : "✅ Post scheduled successfully!")
         setTimeout(() => setMessage(null), 5000)
         loadPosts()
       } else {
@@ -297,6 +298,11 @@ export default function AppPostsPage() {
         credentials: "include",
       })
       if (res.ok) {
+        // If we're editing the deleted post, clear the form
+        if (editingPost?.id === postId) {
+          setEditingPost(null)
+          setForm(initialPost)
+        }
         setMessage("✅ Post deleted successfully!")
         setTimeout(() => setMessage(null), 5000)
         loadPosts()
@@ -518,7 +524,8 @@ export default function AppPostsPage() {
                         <div className="flex gap-1">
                           <button
                             onClick={() => {
-                              // Duplicate post
+                              // Duplicate post (copy without editing)
+                              setEditingPost(null) // Clear any existing edit
                               setForm({
                                 ...initialPost,
                                 groupId: post.group.id,
@@ -530,7 +537,7 @@ export default function AppPostsPage() {
                               document.getElementById("post-form")?.scrollIntoView({ behavior: "smooth" })
                             }}
                             className="rounded px-2 py-1 text-xs text-blue-600 hover:bg-blue-50"
-                            title="Duplicate"
+                            title="Copy Post"
                           >
                             📋
                           </button>
@@ -688,9 +695,14 @@ export default function AppPostsPage() {
                   Add Time
                 </button>
               </div>
-              {form.scheduledTimes.length === 0 && (
+              {form.scheduledTimes.length === 0 && editingPost && (
                 <p className="mt-2 text-xs text-red-600">
                   ⚠️ At least one scheduled time is required
+                </p>
+              )}
+              {form.scheduledTimes.length === 0 && !editingPost && (
+                <p className="mt-2 text-xs text-gray-500">
+                  Add at least one scheduled time to schedule this post
                 </p>
               )}
             </div>

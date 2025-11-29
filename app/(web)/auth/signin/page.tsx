@@ -163,7 +163,7 @@ function SignInForm() {
           </div>
           <h1 className="text-3xl font-bold text-gray-900">MyTgApp</h1>
           <p className="mt-2 text-sm text-gray-600">
-            Sign in to post ads in Telegram groups
+            Sign in to manage your Telegram groups and post ads
           </p>
         </div>
 
@@ -225,12 +225,40 @@ function SignInForm() {
           )}
         </div>
 
-        <div className="pt-4 text-center text-sm text-gray-600">
+        {/* Information Section */}
+        <div className="rounded-lg border border-blue-200 bg-blue-50 p-4 space-y-3">
+          <h3 className="text-sm font-semibold text-blue-900">What you can do:</h3>
+          <ul className="text-xs text-blue-800 space-y-2">
+            <li className="flex items-start">
+              <svg className="h-4 w-4 text-blue-600 mr-2 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+              </svg>
+              <span><strong>Add your Telegram groups</strong> - Connect and verify your groups to start managing them</span>
+            </li>
+            <li className="flex items-start">
+              <svg className="h-4 w-4 text-blue-600 mr-2 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+              </svg>
+              <span><strong>Let users post ads</strong> - Grant credits to users so they can post advertisements in your groups</span>
+            </li>
+            <li className="flex items-start">
+              <svg className="h-4 w-4 text-blue-600 mr-2 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+              </svg>
+              <span><strong>Subscribe to schedule posts</strong> - With an active subscription, you can schedule unlimited posts to your groups</span>
+            </li>
+            <li className="flex items-start">
+              <svg className="h-4 w-4 text-blue-600 mr-2 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+              </svg>
+              <span><strong>Earn from paid ads</strong> - Set prices for posting to your groups and earn revenue</span>
+            </li>
+          </ul>
+        </div>
+
+        <div className="pt-2 text-center text-xs text-gray-500">
           <p>
-            New to MyTgApp?{" "}
-            <a href="/auth/publisher/signup" className="font-semibold text-blue-600 hover:text-blue-700">
-              Sign up as Publisher
-            </a>
+            New users get 3 free scheduled posts. Subscribe to unlock unlimited scheduling.
           </p>
         </div>
       </div>

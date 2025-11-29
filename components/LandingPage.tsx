@@ -79,7 +79,7 @@ export default function LandingPage() {
                     Sign In
                   </Link>
                   <Link
-                    href="/auth/publisher/signup"
+                    href="/auth/signin"
                     className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"
                   >
                     Get Started
@@ -399,7 +399,7 @@ export default function LandingPage() {
           </p>
           {!session ? (
             <Link
-              href="/auth/publisher/signup"
+              href="/auth/signin"
               className="inline-block px-10 py-5 bg-white text-blue-600 rounded-lg text-lg font-semibold hover:bg-gray-50 transition-colors shadow-xl"
             >
               Create Your Account

@@ -18,6 +18,7 @@ type SubscriptionInfo = {
     monthlyFee: number | null
     revenueSharePercent: number | null
     stripeSubscriptionId: string | null
+    cancelAtPeriodEnd?: boolean
   } | null
 }
 
@@ -149,6 +150,11 @@ export default function SubscriptionsPage() {
     (subscriptionInfo?.subscriptionStatus === "ACTIVE" &&
      subscriptionInfo?.subscriptionTier !== "FREE" &&
      (!subscriptionInfo?.subscriptionExpiresAt || new Date(subscriptionInfo.subscriptionExpiresAt) > new Date()))
+  
+  // Check if subscription is cancelled (either status is CANCELED or cancel_at_period_end is true)
+  const isCancelled = subscriptionInfo?.activeSubscription?.status === "CANCELED" ||
+    subscriptionInfo?.subscriptionStatus === "CANCELED" ||
+    subscriptionInfo?.activeSubscription?.cancelAtPeriodEnd === true
 
   return (
     <div className="space-y-8 p-6">
@@ -234,17 +240,50 @@ export default function SubscriptionsPage() {
               </div>
             )}
 
-            {hasActiveSubscription && (
-              <div className="pt-4 border-t border-gray-200">
+            {/* Cancellation Notice */}
+            {isCancelled && subscriptionInfo.activeSubscription?.currentPeriodEnd && (
+              <div className="mt-4 rounded-lg border border-yellow-200 bg-yellow-50 p-4">
+                <div className="flex items-start">
+                  <svg className="h-5 w-5 text-yellow-600 mr-2 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                  </svg>
+                  <div className="flex-1">
+                    <p className="text-sm font-semibold text-yellow-900 mb-1">
+                      Subscription Cancelled
+                    </p>
+                    <p className="text-sm text-yellow-800">
+                      Your subscription has been cancelled and will remain active until{" "}
+                      <strong>{new Date(subscriptionInfo.activeSubscription.currentPeriodEnd).toLocaleDateString("en-US", {
+                        year: "numeric",
+                        month: "long",
+                        day: "numeric",
+                      })}</strong>.
+                      After this date, you will lose access to subscription features.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Action Buttons */}
+            <div className="pt-4 border-t border-gray-200">
+              {isCancelled ? (
+                <button
+                  onClick={() => handleSubscribe("MONTHLY")}
+                  className="w-full rounded-lg bg-gradient-to-r from-blue-600 to-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition-all hover:from-blue-700 hover:to-indigo-700 hover:shadow-md"
+                >
+                  Resubscribe
+                </button>
+              ) : hasActiveSubscription ? (
                 <button
                   onClick={handleCancel}
                   disabled={canceling}
-                  className="rounded-lg border border-red-300 bg-red-50 px-4 py-2 text-sm font-semibold text-red-700 transition-all hover:bg-red-100 disabled:opacity-50"
+                  className="w-full rounded-lg border border-red-300 bg-red-50 px-4 py-2 text-sm font-semibold text-red-700 transition-all hover:bg-red-100 disabled:opacity-50"
                 >
                   {canceling ? "Canceling..." : "Cancel Subscription"}
                 </button>
-              </div>
-            )}
+              ) : null}
+            </div>
           </div>
         ) : (
           <div className="text-gray-500">Loading subscription information...</div>
@@ -306,10 +345,10 @@ export default function SubscriptionsPage() {
             </ul>
             <button
               onClick={() => handleSubscribe("MONTHLY")}
-              disabled={hasActiveSubscription}
+              disabled={hasActiveSubscription && !isCancelled}
               className="w-full rounded-lg bg-gradient-to-r from-blue-600 to-indigo-600 px-6 py-3 text-base font-semibold text-white shadow-lg transition-all hover:from-blue-700 hover:to-indigo-700 hover:shadow-xl hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
             >
-              {hasActiveSubscription ? "Current Plan" : "Subscribe Now"}
+              {hasActiveSubscription && !isCancelled ? "Current Plan" : isCancelled ? "Resubscribe" : "Subscribe Now"}
             </button>
           </div>
         </div>
