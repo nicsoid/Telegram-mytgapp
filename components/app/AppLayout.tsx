@@ -3,7 +3,7 @@
 import { useSession, signOut } from "next-auth/react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { useState } from "react"
+import { useState, useEffect } from "react"
 
 interface AppLayoutProps {
   children: React.ReactNode
@@ -13,6 +13,22 @@ export default function AppLayout({ children }: AppLayoutProps) {
   const { data: session } = useSession()
   const pathname = usePathname()
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+  const [isTelegram, setIsTelegram] = useState(false)
+
+  // Check if we're in Telegram Mini App
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const tg = (window as any).Telegram?.WebApp
+      if (tg) {
+        setIsTelegram(true)
+        tg.ready()
+        tg.expand()
+        // Set viewport height for proper sizing in mini app
+        tg.setHeaderColor('#ffffff')
+        tg.setBackgroundColor('#f9fafb')
+      }
+    }
+  }, [])
 
   const displayName = (() => {
     if (!session?.user) return "Member"
@@ -116,10 +132,10 @@ export default function AppLayout({ children }: AppLayoutProps) {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-gray-50">
+    <div className={`min-h-screen bg-gradient-to-br from-gray-50 via-white to-gray-50 ${isTelegram ? 'overflow-x-hidden' : ''}`}>
       {/* Top Navigation */}
       <nav className="sticky top-0 z-50 border-b border-gray-200/50 bg-white/90 backdrop-blur-xl shadow-sm">
-        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+        <div className={`mx-auto ${isTelegram ? 'w-full px-2 sm:px-4' : 'max-w-7xl px-4 sm:px-6 lg:px-8'}`}>
           <div className="flex h-16 items-center justify-between">
             {/* Logo & Brand */}
             <div className="flex items-center">
@@ -234,7 +250,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
       </nav>
 
       {/* Main Content */}
-      <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">{children}</main>
+      <main className={`mx-auto ${isTelegram ? 'w-full px-2 py-4 sm:px-4' : 'max-w-7xl px-4 py-8 sm:px-6 lg:px-8'}`}>{children}</main>
     </div>
   )
 }

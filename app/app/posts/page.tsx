@@ -94,6 +94,9 @@ function AppPostsPageContent() {
   }, [groups])
 
   useEffect(() => {
+    // Check if we're in Telegram Mini App
+    const isInTelegram = typeof window !== "undefined" && (window as any).Telegram?.WebApp
+    
     // Wait for session status to be determined
     if (status === "loading") {
       setLoading(true) // Keep loading state while session is loading
@@ -101,8 +104,15 @@ function AppPostsPageContent() {
     }
     
     // Only proceed if we have a confirmed session or confirmed unauthenticated state
-    // Don't redirect on first load - wait for session to be determined
+    // In Telegram, wait longer for auto-auth to complete
     if (status === "unauthenticated") {
+      if (isInTelegram) {
+        // In Telegram, wait up to 5 seconds for auto-auth
+        const timer = setTimeout(() => {
+          setLoading(false)
+        }, 5000)
+        return () => clearTimeout(timer)
+      }
       setLoading(false)
       return
     }
@@ -403,24 +413,29 @@ function AppPostsPageContent() {
     }
   }
 
+  // Check if we're in Telegram Mini App
+  const isInTelegram = typeof window !== "undefined" && (window as any).Telegram?.WebApp
+
   // Show loading state while session is being checked
-  // Don't show "sign in" message until we're sure the session is loaded
-  if (status === "loading") {
+  // In Telegram mini app, give more time for auto-auth to complete
+  if (status === "loading" || (status === "unauthenticated" && isInTelegram && loading)) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-gray-50 via-white to-gray-50">
         <div className="text-center">
           <div className="mb-4 text-4xl">⏳</div>
           <p className="text-gray-600">Loading...</p>
+          {isInTelegram && (
+            <p className="mt-2 text-sm text-gray-500">Authenticating with Telegram...</p>
+          )}
         </div>
       </div>
     )
   }
 
   // Only show "sign in" message if we're absolutely sure user is not authenticated
-  // Wait a bit longer to ensure session is fully loaded (especially for Telegram mini app)
-  if (status === "unauthenticated") {
-    // Add a small delay to ensure session is fully checked
-    // This prevents showing "sign in" message on first load when session is still initializing
+  // AND we're not in Telegram (where auto-auth should handle it)
+  // AND loading is complete
+  if (status === "unauthenticated" && !isInTelegram && !loading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-gray-50 via-white to-gray-50 text-gray-600">
         Please sign in to manage posts.
