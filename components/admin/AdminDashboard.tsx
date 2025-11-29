@@ -94,13 +94,10 @@ export default function AdminDashboard() {
   const fetchCreditRequests = async () => {
     setLoading(true)
     try {
-      const res = await fetch("/api/admin/credit-requests?status=PENDING", {
-        credentials: "include",
-      })
-      if (res.ok) {
-        const data = await res.json()
-        setCreditRequests(data.requests || [])
-      }
+      // Admin should NOT see credit requests - they are for group owners only
+      // Credit requests are handled by group owners, not admins
+      // Admin can manage users and subscriptions, but credit requests go to group owners
+      setCreditRequests([])
     } catch (error) {
       console.error("Failed to fetch credit requests", error)
     } finally {
@@ -202,11 +199,6 @@ export default function AdminDashboard() {
                 }`}
               >
                 💳 Credit Requests
-                {creditRequests.length > 0 && (
-                  <span className="ml-2 inline-flex items-center rounded-full bg-red-100 px-2.5 py-0.5 text-xs font-medium text-red-800">
-                    {creditRequests.length}
-                  </span>
-                )}
               </button>
               <Link
                 href="/admin/publishers"
@@ -329,97 +321,24 @@ export default function AdminDashboard() {
 
         {activeTab === "credit-requests" && (
           <div className="rounded-2xl border border-gray-200 bg-white shadow-lg overflow-hidden">
-            <div className="px-6 py-5 border-b border-gray-200 bg-gradient-to-r from-yellow-50 to-amber-50">
-              <h2 className="text-lg font-bold text-gray-900">Pending Credit Requests</h2>
-              <p className="mt-1 text-sm text-gray-600">Review and process credit requests from users</p>
+            <div className="px-6 py-5 border-b border-gray-200 bg-gradient-to-r from-blue-50 to-indigo-50">
+              <h2 className="text-lg font-bold text-gray-900">Credit Requests</h2>
+              <p className="mt-1 text-sm text-gray-600">Credit requests are handled by group owners, not admins</p>
             </div>
-            <div className="p-6">
-              {loading ? (
-                <div className="flex items-center justify-center py-12">
-                  <div className="text-gray-400">Loading credit requests...</div>
-                </div>
-              ) : creditRequests.length === 0 ? (
-                <div className="text-center py-12">
-                  <div className="text-4xl mb-4">✅</div>
-                  <p className="text-sm font-medium text-gray-900">No pending credit requests</p>
-                  <p className="mt-1 text-xs text-gray-500">All requests have been processed</p>
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  {creditRequests.map((request) => (
-                    <div
-                      key={request.id}
-                      className="group relative overflow-hidden rounded-xl border border-gray-200 bg-white p-5 shadow-sm transition-all hover:border-blue-300 hover:shadow-md"
-                    >
-                      <div className="flex items-start justify-between">
-                        <div className="flex-1">
-                          <div className="flex items-center space-x-3 mb-3">
-                            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-gradient-to-br from-yellow-500 to-amber-500 text-white font-bold">
-                              {(request.user.name || request.user.email || "U")[0].toUpperCase()}
-                            </div>
-                            <div>
-                              <h3 className="text-base font-semibold text-gray-900">
-                                {request.user.name || request.user.telegramUsername || "Unknown User"}
-                              </h3>
-                              <p className="text-xs text-gray-500">
-                                {request.user.email || request.user.telegramUsername || request.user.id}
-                              </p>
-                            </div>
-                          </div>
-                          <div className="space-y-2">
-                            <div className="flex items-center space-x-2">
-                              <span className="text-sm font-semibold text-gray-700">Requested:</span>
-                              <span className="text-lg font-bold text-blue-600">{request.amount.toLocaleString()} credits</span>
-                            </div>
-                            {request.reason && (
-                              <div className="rounded-lg bg-gray-50 border border-gray-200 p-3">
-                                <p className="text-xs font-medium text-gray-700 mb-1">Reason:</p>
-                                <p className="text-sm text-gray-600">{request.reason}</p>
-                              </div>
-                            )}
-                            <div className="flex items-center space-x-4 text-xs text-gray-500">
-                              <span>Current balance: <span className="font-semibold text-gray-700">{request.user.credits}</span> credits</span>
-                              <span>•</span>
-                              <span>{new Date(request.createdAt).toLocaleDateString()}</span>
-                            </div>
-                          </div>
-                        </div>
-                        <div className="ml-4 flex flex-col gap-2">
-                          <button
-                            onClick={() => handleApproveRequest(request.id)}
-                            disabled={processingRequest === request.id}
-                            className="rounded-lg bg-gradient-to-r from-green-600 to-emerald-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-all hover:from-green-700 hover:to-emerald-700 hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
-                          >
-                            {processingRequest === request.id ? (
-                              <span className="flex items-center">
-                                <svg className="animate-spin -ml-1 mr-2 h-4 w-4" fill="none" viewBox="0 0 24 24">
-                                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                                </svg>
-                                Processing...
-                              </span>
-                            ) : (
-                              "✓ Approve"
-                            )}
-                          </button>
-                          <button
-                            onClick={() => setRejectModal({
-                              isOpen: true,
-                              requestId: request.id,
-                              userName: request.user.name || request.user.telegramUsername || "User",
-                              amount: request.amount,
-                            })}
-                            disabled={processingRequest === request.id}
-                            className="rounded-lg border border-red-300 bg-white px-4 py-2.5 text-sm font-semibold text-red-700 transition-all hover:bg-red-50 hover:border-red-400 disabled:opacity-50 disabled:cursor-not-allowed"
-                          >
-                            ✕ Reject
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
+            <div className="p-12 text-center">
+              <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-blue-100 mb-4">
+                <svg className="w-8 h-8 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </div>
+              <h3 className="text-lg font-semibold text-gray-900 mb-2">Credit Requests Are for Group Owners</h3>
+              <p className="text-sm text-gray-600 max-w-md mx-auto">
+                When users request credits for posting in a specific group, the request goes to the owner of that group. 
+                Group owners can view and manage credit requests in their dashboard.
+              </p>
+              <p className="mt-4 text-xs text-gray-500">
+                Admins manage users, subscriptions, and system settings, but do not handle credit requests.
+              </p>
             </div>
           </div>
         )}

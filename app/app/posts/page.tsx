@@ -69,14 +69,16 @@ export default function AppPostsPage() {
   useEffect(() => {
     // Wait for session status to be determined
     if (status === "loading") {
+      setLoading(true) // Keep loading state while session is loading
       return // Still loading, don't do anything
     }
     
-    if (status === "authenticated" && session?.user) {
+    if (session?.user) {
+      // User is authenticated, load data
       loadGroups()
       loadPosts()
-    } else if (status === "unauthenticated") {
-      // Only set loading to false if we're sure user is not authenticated
+    } else {
+      // User is not authenticated
       setLoading(false)
     }
   }, [session, status])
@@ -268,7 +270,7 @@ export default function AppPostsPage() {
   }
 
   // Show loading state while session is being checked
-  if (status === "loading" || loading) {
+  if (status === "loading") {
     return (
       <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-gray-50 via-white to-gray-50">
         <div className="text-center">
@@ -280,11 +282,23 @@ export default function AppPostsPage() {
   }
 
   // Only show "sign in" message if we're sure user is not authenticated
-  // Wait a bit longer for session to load in mini app
+  // Don't show it if session is still loading
   if (status === "unauthenticated") {
     return (
       <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-gray-50 via-white to-gray-50 text-gray-600">
         Please sign in to manage posts.
+      </div>
+    )
+  }
+
+  // Show loading while data is being fetched (but not while session is loading)
+  if (loading && status === "authenticated") {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-gray-50 via-white to-gray-50">
+        <div className="text-center">
+          <div className="mb-4 text-4xl">⏳</div>
+          <p className="text-gray-600">Loading posts...</p>
+        </div>
       </div>
     )
   }
