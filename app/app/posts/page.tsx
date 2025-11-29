@@ -1,7 +1,8 @@
 "use client"
 
 import { useSession } from "next-auth/react"
-import { useEffect, useMemo, useState, useRef } from "react"
+import { useEffect, useMemo, useState, useRef, Suspense } from "react"
+import { useSearchParams } from "next/navigation"
 import { format } from "date-fns"
 import FormattingToolbar from "@/components/editor/FormattingToolbar"
 import { FormatType, applyFormatting } from "@/lib/richText"
@@ -47,8 +48,9 @@ const initialPost = {
   recurrenceCount: undefined as number | undefined,
 }
 
-export default function AppPostsPage() {
+function AppPostsPageContent() {
   const { data: session, status } = useSession()
+  const searchParams = useSearchParams()
   const [groups, setGroups] = useState<TelegramGroup[]>([])
   const [posts, setPosts] = useState<TelegramPost[]>([])
   const [loading, setLoading] = useState(true)
@@ -112,9 +114,19 @@ export default function AppPostsPage() {
           new Map(allGroups.map((g: any) => [g.id, g])).values()
         )
         setGroups(uniqueGroups)
-        const firstVerified = uniqueGroups.find((g: any) => g.isVerified && g.ownerHasActiveSubscription)
-        if (firstVerified && !form.groupId) {
-          setForm((prev) => ({ ...prev, groupId: firstVerified.id }))
+        
+        // Check URL parameter first, then find first verified group
+        const urlGroupId = searchParams?.get("groupId")
+        if (urlGroupId) {
+          const urlGroup = uniqueGroups.find((g: any) => g.id === urlGroupId)
+          if (urlGroup && urlGroup.isVerified && urlGroup.ownerHasActiveSubscription) {
+            setForm((prev) => ({ ...prev, groupId: urlGroupId }))
+          }
+        } else {
+          const firstVerified = uniqueGroups.find((g: any) => g.isVerified && g.ownerHasActiveSubscription)
+          if (firstVerified && !form.groupId) {
+            setForm((prev) => ({ ...prev, groupId: firstVerified.id }))
+          }
         }
       } else {
         setGroups(ownGroups)
@@ -1005,6 +1017,21 @@ export default function AppPostsPage() {
         </div>
       )}
     </div>
+  )
+}
+
+export default function AppPostsPage() {
+  return (
+    <Suspense fallback={
+      <div className="flex min-h-screen items-center justify-center">
+        <div className="text-center">
+          <div className="mb-4 text-4xl">⏳</div>
+          <p className="text-gray-600">Loading...</p>
+        </div>
+      </div>
+    }>
+      <AppPostsPageContent />
+    </Suspense>
   )
 }
 

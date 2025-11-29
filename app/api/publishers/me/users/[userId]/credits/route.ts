@@ -46,13 +46,14 @@ export async function POST(
       },
     })
 
-    // Create transaction record
+    // Create transaction record with grantedByUserId for group-owner-specific credits
     await tx.creditTransaction.create({
       data: {
         userId,
         amount,
         type: "PUBLISHER_GRANT",
         relatedGroupId: groupId || null,
+        grantedByUserId: guard.user.id, // Track who granted these credits
         description: notes || `Credits granted by group owner`,
       },
     })

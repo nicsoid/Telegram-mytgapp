@@ -117,15 +117,17 @@ model User {
   createdAt                            DateTime           @default(now())
   updatedAt                            DateTime           @updatedAt
 
-  accounts           Account[]
-  sessions           Session[]
-  groups             TelegramGroup[] // Groups owned by this user
-  advertiserPosts    TelegramPost[]      @relation("AdvertiserPosts")
-  ownerPosts         TelegramPost[]      @relation("OwnerPosts") // Posts in groups owned by this user
-  creditTransactions CreditTransaction[]
-  creditRequests     CreditRequest[]     @relation("CreditRequests") // Requests from other users (this user is group owner)
-  sentCreditRequests CreditRequest[]     @relation("SentCreditRequests") // Requests sent by this user
-  subscriptions      Subscription[]
+  accounts                   Account[]
+  sessions                   Session[]
+  groups                     TelegramGroup[] // Groups owned by this user
+  advertiserPosts            TelegramPost[]      @relation("AdvertiserPosts")
+  ownerPosts                 TelegramPost[]      @relation("OwnerPosts") // Posts in groups owned by this user
+  creditTransactions         CreditTransaction[]
+  creditRequests             CreditRequest[]     @relation("CreditRequests") // Requests from other users (this user is group owner)
+  sentCreditRequests         CreditRequest[]     @relation("SentCreditRequests") // Requests sent by this user
+  stickyPostRequests         StickyPostRequest[] @relation("StickyPostRequests") // Sticky post requests sent by this user
+  stickyPostRequestsReceived StickyPostRequest[] @relation("StickyPostRequestsReceived") // Sticky post requests received by this user
+  subscriptions              Subscription[]
 
   @@index([email])
   @@index([telegramId])
@@ -155,11 +157,16 @@ model TelegramGroup {
   totalPostsScheduled  Int       @default(0)
   totalPostsSent       Int       @default(0)
   totalRevenue         Int       @default(0) // Total credits earned
+  // Sticky post settings
+  stickyPostsEnabled   Boolean   @default(false) // Whether sticky posts are enabled
+  stickyPostPrice      Int? // Price in credits for sticky posts
+  stickyPostPeriodDays Int? // Period in days for sticky posts
   createdAt            DateTime  @default(now())
   updatedAt            DateTime  @updatedAt
 
-  user  User           @relation(fields: [userId], references: [id], onDelete: Cascade)
-  posts TelegramPost[]
+  user               User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  posts              TelegramPost[]
+  stickyPostRequests StickyPostRequest[]
 
   @@index([userId])
   @@index([telegramChatId])
@@ -167,33 +174,33 @@ model TelegramGroup {
 }
 
 model TelegramPost {
-  id            String     @id @default(cuid())
-  groupId       String
-  ownerId       String // User who owns the group
-  advertiserId  String? // If paid ad, null if owner's own post
-  content       String     @db.Text
-  mediaUrls     String[] // Array of image/video URLs
-  scheduledAt   DateTime // Primary/initial scheduled time (for backward compatibility)
-  postedAt      DateTime?
-  status        PostStatus @default(DRAFT) // Overall post status
-  failureReason String?    @db.Text
-  isPaidAd      Boolean    @default(false)
-  creditsPaid   Int? // Credits paid for this post (if paid ad)
-  campaignId    String? // If part of a campaign
+  id                 String     @id @default(cuid())
+  groupId            String
+  ownerId            String // User who owns the group
+  advertiserId       String? // If paid ad, null if owner's own post
+  content            String     @db.Text
+  mediaUrls          String[] // Array of image/video URLs
+  scheduledAt        DateTime // Primary/initial scheduled time (for backward compatibility)
+  postedAt           DateTime?
+  status             PostStatus @default(DRAFT) // Overall post status
+  failureReason      String?    @db.Text
+  isPaidAd           Boolean    @default(false)
+  creditsPaid        Int? // Credits paid for this post (if paid ad)
+  campaignId         String? // If part of a campaign
   // Recurring scheduling fields
-  isRecurring   Boolean    @default(false)
-  recurrencePattern String? // "daily", "weekly", "monthly", "custom"
+  isRecurring        Boolean    @default(false)
+  recurrencePattern  String? // "daily", "weekly", "monthly", "custom"
   recurrenceInterval Int? // For custom: every N days
-  recurrenceEndDate DateTime? // When to stop recurring
-  recurrenceCount Int? // Max number of occurrences
-  parentPostId  String? // If this is a recurring instance, link to parent
-  nextOccurrence DateTime? // Next scheduled occurrence
-  createdAt     DateTime   @default(now())
-  updatedAt     DateTime   @updatedAt
+  recurrenceEndDate  DateTime? // When to stop recurring
+  recurrenceCount    Int? // Max number of occurrences
+  parentPostId       String? // If this is a recurring instance, link to parent
+  nextOccurrence     DateTime? // Next scheduled occurrence
+  createdAt          DateTime   @default(now())
+  updatedAt          DateTime   @updatedAt
 
-  group      TelegramGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
-  owner      User          @relation("OwnerPosts", fields: [ownerId], references: [id], onDelete: Cascade)
-  advertiser User?         @relation("AdvertiserPosts", fields: [advertiserId], references: [id], onDelete: SetNull)
+  group          TelegramGroup       @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  owner          User                @relation("OwnerPosts", fields: [ownerId], references: [id], onDelete: Cascade)
+  advertiser     User?               @relation("AdvertiserPosts", fields: [advertiserId], references: [id], onDelete: SetNull)
   scheduledTimes ScheduledPostTime[] // Multiple scheduled times for this post
 
   @@index([groupId])
@@ -207,8 +214,8 @@ model TelegramPost {
 model ScheduledPostTime {
   id            String     @id @default(cuid())
   postId        String
-  scheduledAt   DateTime   // When this specific instance should be posted
-  postedAt      DateTime?  // When it was actually posted
+  scheduledAt   DateTime // When this specific instance should be posted
+  postedAt      DateTime? // When it was actually posted
   status        PostStatus @default(SCHEDULED) // Status of this specific scheduled time
   failureReason String?    @db.Text
   createdAt     DateTime   @default(now())
@@ -222,19 +229,21 @@ model ScheduledPostTime {
 }
 
 model CreditTransaction {
-  id             String                @id @default(cuid())
-  userId         String
-  amount         Int // Positive for credit, negative for debit
-  type           CreditTransactionType
-  relatedPostId  String? // If related to a post
-  relatedGroupId String? // If related to a group
-  description    String?               @db.Text
-  createdAt      DateTime              @default(now())
+  id              String                @id @default(cuid())
+  userId          String
+  amount          Int // Positive for credit, negative for debit
+  type            CreditTransactionType
+  relatedPostId   String? // If related to a post
+  relatedGroupId  String? // If related to a group
+  grantedByUserId String? // User who granted these credits (for group-owner-specific credits)
+  description     String?               @db.Text
+  createdAt       DateTime              @default(now())
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
   @@index([type])
+  @@index([grantedByUserId])
   @@index([createdAt])
 }
 
@@ -299,6 +308,36 @@ model CreditRequest {
   @@index([userId])
   @@index([groupOwnerId])
   @@index([groupId])
+  @@index([status])
+  @@index([createdAt])
+}
+
+// Sticky post requests from users to group owners
+model StickyPostRequest {
+  id           String    @id @default(cuid())
+  userId       String // User requesting sticky post
+  groupId      String // Group where sticky post is requested
+  groupOwnerId String // User who owns the group
+  postId       String? // Post to be stickied (if already created)
+  content      String?   @db.Text // Post content (if creating new post)
+  mediaUrls    String[] // Media URLs for the post
+  periodDays   Int // Requested period in days
+  creditsPaid  Int // Credits paid for sticky post
+  status       String    @default("PENDING") // PENDING, APPROVED, REJECTED, FULFILLED
+  processedBy  String? // User ID who processed it
+  processedAt  DateTime?
+  fulfilledAt  DateTime? // When the post was actually stickied
+  notes        String?   @db.Text
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  user       User          @relation("StickyPostRequests", fields: [userId], references: [id], onDelete: Cascade)
+  group      TelegramGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  groupOwner User          @relation("StickyPostRequestsReceived", fields: [groupOwnerId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([groupId])
+  @@index([groupOwnerId])
   @@index([status])
   @@index([createdAt])
 }
