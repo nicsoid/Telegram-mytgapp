@@ -79,13 +79,17 @@ function AppPostsPageContent() {
       return // Still loading, don't do anything
     }
     
+    // Only proceed if we have a confirmed session or confirmed unauthenticated state
+    // Don't redirect on first load - wait for session to be determined
+    if (status === "unauthenticated") {
+      setLoading(false)
+      return
+    }
+    
     if (session?.user) {
       // User is authenticated, load data
       loadGroups()
       loadPosts()
-    } else {
-      // User is not authenticated
-      setLoading(false)
     }
   }, [session, status])
 

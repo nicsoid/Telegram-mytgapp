@@ -217,9 +217,21 @@ export async function POST(request: NextRequest) {
 
   // Check if user owns the group or is posting as advertiser
   const isGroupOwner = group.userId === session.user.id
-  const isOwnPost = !isPaidAd || !advertiserId
+  
+  // If posting to another user's group, it must be a paid ad
+  // If posting to own group, it can be either own post or paid ad
+  let finalIsPaidAd = isPaidAd
+  let finalAdvertiserId = advertiserId
+  
+  if (!isGroupOwner) {
+    // User is posting to someone else's group - must be a paid ad
+    finalIsPaidAd = true
+    finalAdvertiserId = session.user.id // The current user is the advertiser
+  }
+  
+  const isOwnPost = !finalIsPaidAd || !finalAdvertiserId
 
-  // Only group owner can post their own posts
+  // Only group owner can post their own posts (non-paid ads)
   if (isOwnPost && !isGroupOwner) {
     return NextResponse.json({ error: "Only group owner can post to their group" }, { status: 403 })
   }
@@ -234,6 +246,7 @@ export async function POST(request: NextRequest) {
   // For group owner's own posts, check subscription (required for scheduling)
   // Users can post unlimited posts with credits, but group owner needs subscription to schedule posts
   if (isOwnPost && isGroupOwner) {
+    // Use finalIsPaidAd and finalAdvertiserId for consistency
     const user = group.user
     const hasActiveSubscription = user.subscriptions.length > 0 ||
                                   (user.subscriptionStatus === "ACTIVE" &&
@@ -253,7 +266,7 @@ export async function POST(request: NextRequest) {
   }
 
   // For paid ads (advertiser posting to someone else's group), check if group owner has subscription
-  if (isPaidAd && advertiserId && !isGroupOwner) {
+  if (finalIsPaidAd && finalAdvertiserId && !isGroupOwner) {
     const user = group.user
     const hasActiveSubscription = user.subscriptions.length > 0 ||
                                   (user.subscriptionStatus === "ACTIVE" &&
@@ -272,10 +285,11 @@ export async function POST(request: NextRequest) {
   }
 
   // If paid ad, verify advertiser and check credits
+  // Note: Users can post in their own groups without credits
   let creditsPaid: number | null = null
-  if (isPaidAd && advertiserId) {
+  if (finalIsPaidAd && finalAdvertiserId && !isGroupOwner) {
     const advertiser = await prisma.user.findUnique({
-      where: { id: advertiserId },
+      where: { id: finalAdvertiserId },
     })
 
     if (!advertiser) {
@@ -283,6 +297,8 @@ export async function POST(request: NextRequest) {
     }
 
     const price = group.pricePerPost
+    
+    // Check if advertiser has enough credits
     if (advertiser.credits < price) {
       return NextResponse.json(
         { error: "Advertiser has insufficient credits" },
@@ -293,7 +309,7 @@ export async function POST(request: NextRequest) {
     // Deduct credits and create transaction
     await prisma.$transaction(async (tx) => {
       await tx.user.update({
-        where: { id: advertiserId },
+        where: { id: finalAdvertiserId },
         data: {
           credits: { decrement: price },
         },
@@ -301,7 +317,7 @@ export async function POST(request: NextRequest) {
 
       await tx.creditTransaction.create({
         data: {
-          userId: advertiserId,
+          userId: finalAdvertiserId,
           amount: -price,
           type: "SPENT",
           relatedPostId: null, // Will update after post creation
@@ -397,12 +413,12 @@ export async function POST(request: NextRequest) {
       data: {
         groupId,
         ownerId,
-        advertiserId: isPaidAd ? advertiserId : null,
+        advertiserId: finalIsPaidAd ? finalAdvertiserId : null,
         content,
         mediaUrls: mediaUrls || [],
         scheduledAt: primaryScheduledAt,
         status: PostStatus.SCHEDULED,
-        isPaidAd,
+        isPaidAd: finalIsPaidAd,
         creditsPaid,
         isRecurring: isRecurring || false,
         recurrencePattern: recurrencePattern || null,

@@ -90,7 +90,6 @@ export default function ManageSubscriptionModal({
             >
               <option value="FREE">FREE</option>
               <option value="MONTHLY">MONTHLY</option>
-              <option value="REVENUE_SHARE">REVENUE_SHARE</option>
             </select>
           </div>
 

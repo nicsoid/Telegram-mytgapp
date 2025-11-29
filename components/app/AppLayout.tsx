@@ -36,6 +36,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
     { name: "My Groups", href: "/app/groups", icon: "groups" },
     { name: "My Posts", href: "/app/posts", icon: "posts" },
     { name: "Credits", href: "/app/credits", icon: "credits" },
+    { name: "Customers", href: "/app/customers", icon: "customers" },
     { name: "Sticky Posts", href: "/app/sticky-posts", icon: "sticky-posts" },
     { name: "Credit Requests", href: "/app/credit-requests", icon: "credit-requests" },
     { name: "Subscriptions", href: "/app/subscriptions", icon: "subscriptions" },
@@ -101,6 +102,12 @@ export default function AppLayout({ children }: AppLayoutProps) {
         return (
           <svg className={iconClass} fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
+          </svg>
+        )
+      case "customers":
+        return (
+          <svg className={iconClass} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H2v-2a3 3 0 015.356-1.857M17 20H2m15 0v-2c0-.656-.126-1.283-.356-1.857M2 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
           </svg>
         )
       default:

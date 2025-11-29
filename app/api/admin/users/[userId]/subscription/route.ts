@@ -5,7 +5,7 @@ import { z } from "zod"
 import { SubscriptionTier, SubscriptionStatus } from "@prisma/client"
 
 const updateSubscriptionSchema = z.object({
-  subscriptionTier: z.nativeEnum(SubscriptionTier).optional(),
+  subscriptionTier: z.enum(["FREE", "MONTHLY"]).optional(), // Only FREE and MONTHLY allowed
   subscriptionStatus: z.nativeEnum(SubscriptionStatus).optional(),
   subscriptionExpiresAt: z.string().datetime().optional().nullable(),
 })

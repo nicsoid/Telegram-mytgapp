@@ -20,6 +20,8 @@ function StickyPostRequestContent() {
     periodDays: 7,
   })
   const [mediaUrlInput, setMediaUrlInput] = useState("")
+  const [uploading, setUploading] = useState(false)
+  const [uploadError, setUploadError] = useState<string | null>(null)
 
   useEffect(() => {
     if (session?.user && groupId) {
@@ -68,6 +70,46 @@ function StickyPostRequestContent() {
       ...prev,
       mediaUrls: prev.mediaUrls.filter((_, i) => i !== index),
     }))
+  }
+
+  const handleFileUpload = async (files: FileList | null, isImage: boolean) => {
+    if (!files || files.length === 0) return
+
+    setUploading(true)
+    setUploadError(null)
+
+    try {
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i]
+        const formData = new FormData()
+        formData.append("file", file)
+
+        const res = await fetch("/api/uploads", {
+          method: "POST",
+          body: formData,
+          credentials: "include",
+        })
+
+        const result = await res.json()
+
+        if (!res.ok) {
+          throw new Error(result.error || "Failed to upload file")
+        }
+
+        // Get full URL
+        const baseUrl = typeof window !== "undefined" ? window.location.origin : ""
+        const fullUrl = `${baseUrl}${result.url}`
+
+        setFormData((prev) => ({
+          ...prev,
+          mediaUrls: [...prev.mediaUrls, fullUrl],
+        }))
+      }
+    } catch (err: any) {
+      setUploadError(err.message || "Failed to upload file")
+    } finally {
+      setUploading(false)
+    }
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -190,32 +232,73 @@ function StickyPostRequestContent() {
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              Media URLs (optional)
+              Media (optional)
             </label>
-            <div className="flex gap-2 mb-2">
-              <input
-                type="url"
-                value={mediaUrlInput}
-                onChange={(e) => setMediaUrlInput(e.target.value)}
-                onKeyPress={(e) => {
-                  if (e.key === "Enter") {
-                    e.preventDefault()
-                    handleAddMediaUrl()
-                  }
-                }}
-                className="flex-1 rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-blue-500"
-                placeholder="https://example.com/image.jpg"
-              />
-              <button
-                type="button"
-                onClick={handleAddMediaUrl}
-                className="rounded-md bg-gray-600 px-4 py-2 text-sm font-medium text-white hover:bg-gray-700"
-              >
-                Add
-              </button>
+            
+            {/* File Upload */}
+            <div className="mb-3 space-y-2">
+              <div className="flex gap-2">
+                <label className="flex-1 cursor-pointer rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50 text-center">
+                  📷 Upload Images
+                  <input
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp"
+                    multiple
+                    className="hidden"
+                    onChange={(e) => handleFileUpload(e.target.files, true)}
+                    disabled={uploading}
+                  />
+                </label>
+                <label className="flex-1 cursor-pointer rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50 text-center">
+                  🎥 Upload Videos
+                  <input
+                    type="file"
+                    accept="video/mp4,video/mpeg,video/quicktime,video/x-msvideo"
+                    multiple
+                    className="hidden"
+                    onChange={(e) => handleFileUpload(e.target.files, false)}
+                    disabled={uploading}
+                  />
+                </label>
+              </div>
+              {uploading && (
+                <div className="text-xs text-blue-600">Uploading files...</div>
+              )}
+              {uploadError && (
+                <div className="text-xs text-red-600">{uploadError}</div>
+              )}
             </div>
+
+            {/* Or Add URL */}
+            <div className="mb-2">
+              <p className="text-xs text-gray-500 mb-2">Or add Media URL:</p>
+              <div className="flex gap-2">
+                <input
+                  type="url"
+                  value={mediaUrlInput}
+                  onChange={(e) => setMediaUrlInput(e.target.value)}
+                  onKeyPress={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault()
+                      handleAddMediaUrl()
+                    }
+                  }}
+                  className="flex-1 rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-blue-500"
+                  placeholder="https://example.com/image.jpg"
+                />
+                <button
+                  type="button"
+                  onClick={handleAddMediaUrl}
+                  className="rounded-md bg-gray-600 px-4 py-2 text-sm font-medium text-white hover:bg-gray-700"
+                >
+                  Add
+                </button>
+              </div>
+            </div>
+
+            {/* Media URLs List */}
             {formData.mediaUrls.length > 0 && (
-              <div className="space-y-2">
+              <div className="space-y-2 mt-3">
                 {formData.mediaUrls.map((url, idx) => (
                   <div
                     key={idx}
