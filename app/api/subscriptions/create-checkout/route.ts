@@ -81,45 +81,116 @@ export async function POST(request: NextRequest) {
 
     // Try to find existing customer
     if (user?.email) {
-      const customers = await stripe.customers.list({
-        email: user.email,
-        limit: 1,
-      })
-      if (customers.data.length > 0) {
-        customerId = customers.data[0].id
+      try {
+        const customers = await stripe.customers.list({
+          email: user.email,
+          limit: 1,
+        })
+        if (customers.data.length > 0) {
+          customerId = customers.data[0].id
+        }
+      } catch (error: any) {
+        console.error("Failed to list customers:", error?.message || error)
+        if (error?.type === 'StripeAuthenticationError') {
+          return NextResponse.json(
+            { 
+              error: "Invalid Stripe API key. Please check STRIPE_SECRET_KEY in your environment variables.",
+              details: "The Stripe secret key appears to be invalid. Verify it in your Stripe Dashboard and ensure it matches your test/live mode."
+            },
+            { status: 500 }
+          )
+        }
+        throw error
       }
     }
 
     // Create customer if not found
     if (!customerId) {
-      const customer = await stripe.customers.create({
-        email: user?.email || undefined,
-        name: user?.name || undefined,
-        metadata: {
-          userId: user.id,
-        },
-      })
-      customerId = customer.id
+      try {
+        const customer = await stripe.customers.create({
+          email: user?.email || undefined,
+          name: user?.name || undefined,
+          metadata: {
+            userId: user.id,
+          },
+        })
+        customerId = customer.id
+      } catch (error: any) {
+        console.error("Failed to create customer:", error?.message || error)
+        if (error?.type === 'StripeAuthenticationError') {
+          return NextResponse.json(
+            { 
+              error: "Invalid Stripe API key. Please check STRIPE_SECRET_KEY in your environment variables.",
+              details: "The Stripe secret key appears to be invalid. Verify it in your Stripe Dashboard."
+            },
+            { status: 500 }
+          )
+        }
+        throw error
+      }
     }
 
     // Create checkout session
-    const checkoutSession = await stripe.checkout.sessions.create({
-      customer: customerId,
-      mode: "subscription",
-      line_items: [
-        {
-          price: priceId,
-          quantity: 1,
+    let checkoutSession
+    try {
+      console.log(`Creating checkout session for tier: ${tier}, priceId: ${priceId}, customerId: ${customerId}`)
+      checkoutSession = await stripe.checkout.sessions.create({
+        customer: customerId,
+        mode: "subscription",
+        line_items: [
+          {
+            price: priceId,
+            quantity: 1,
+          },
+        ],
+        success_url: successUrl,
+        cancel_url: cancelUrl,
+        metadata: {
+          type: "subscription",
+          userId: user.id,
+          tier,
         },
-      ],
-      success_url: successUrl,
-      cancel_url: cancelUrl,
-      metadata: {
-        type: "subscription",
-        userId: user.id,
-        tier,
-      },
-    })
+      })
+      console.log(`✅ Checkout session created: ${checkoutSession.id}`)
+    } catch (stripeError: any) {
+      console.error("Stripe checkout session creation error:", {
+        type: stripeError?.type,
+        code: stripeError?.code,
+        message: stripeError?.message,
+        param: stripeError?.param,
+      })
+      
+      // Provide more helpful error message
+      if (stripeError?.type === 'StripeAuthenticationError') {
+        return NextResponse.json(
+          { 
+            error: "Invalid Stripe API key. Please check STRIPE_SECRET_KEY in your environment variables.",
+            details: "The Stripe secret key appears to be invalid or incorrect. Make sure it starts with 'sk_test_' for test mode or 'sk_live_' for live mode, and that it matches the mode of your price IDs.",
+            debug: {
+              keyPrefix: process.env.STRIPE_SECRET_KEY?.substring(0, 10) + "...",
+              priceId: priceId,
+              tier: tier,
+            }
+          },
+          { status: 500 }
+        )
+      }
+      if (stripeError?.code === 'resource_missing' && stripeError?.param === 'price') {
+        return NextResponse.json(
+          { 
+            error: `Price ID not found: ${priceId}. Please check your STRIPE_MONTHLY_PRICE_ID or STRIPE_REVENUE_SHARE_PRICE_ID in environment variables.`,
+            details: "The Stripe price ID does not exist or is incorrect. Verify it in your Stripe Dashboard and ensure it matches your test/live mode.",
+            debug: {
+              priceId: priceId,
+              tier: tier,
+            }
+          },
+          { status: 400 }
+        )
+      }
+      // Re-throw other errors to be caught by outer catch
+      throw stripeError
+    }
 
     return NextResponse.json({
       sessionId: checkoutSession.id,
