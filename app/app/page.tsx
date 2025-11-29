@@ -312,7 +312,7 @@ export default function AppPage() {
         {pendingCreditRequests > 0 && (
           <div className="relative z-10 mt-4">
             <Link
-              href="/dashboard/credit-requests"
+              href="/app/credit-requests"
               className="inline-flex items-center gap-2 rounded-xl bg-white/20 backdrop-blur-sm px-4 py-2 text-sm font-semibold text-white transition-all hover:bg-white/30 hover:scale-105"
             >
               <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
