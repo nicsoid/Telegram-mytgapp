@@ -109,8 +109,12 @@ function AppPostsPageContent() {
     
     if (session?.user) {
       // User is authenticated, load data
-      loadGroups()
-      loadPosts()
+      // Add a small delay to ensure session is fully initialized (especially for Telegram mini app)
+      const timer = setTimeout(() => {
+        loadGroups()
+        loadPosts()
+      }, 100)
+      return () => clearTimeout(timer)
     }
   }, [session, status])
 
@@ -400,6 +404,7 @@ function AppPostsPageContent() {
   }
 
   // Show loading state while session is being checked
+  // Don't show "sign in" message until we're sure the session is loaded
   if (status === "loading") {
     return (
       <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-gray-50 via-white to-gray-50">
@@ -411,9 +416,11 @@ function AppPostsPageContent() {
     )
   }
 
-  // Only show "sign in" message if we're sure user is not authenticated
-  // Don't show it if session is still loading
+  // Only show "sign in" message if we're absolutely sure user is not authenticated
+  // Wait a bit longer to ensure session is fully loaded (especially for Telegram mini app)
   if (status === "unauthenticated") {
+    // Add a small delay to ensure session is fully checked
+    // This prevents showing "sign in" message on first load when session is still initializing
     return (
       <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-gray-50 via-white to-gray-50 text-gray-600">
         Please sign in to manage posts.
@@ -439,12 +446,12 @@ function AppPostsPageContent() {
   return (
     <div className="space-y-8">
       {/* Page Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">Scheduled Posts</h1>
           <p className="mt-2 text-gray-600">Plan and manage your Telegram content</p>
         </div>
-        <div className="flex items-center space-x-4">
+        <div className="flex flex-wrap items-center gap-3">
           <div className="rounded-lg bg-gradient-to-br from-blue-50 to-indigo-50 px-4 py-2">
             <div className="text-xs font-medium text-gray-500">Scheduled</div>
             <div className="text-lg font-bold text-blue-700">{scheduledPosts.length}</div>
@@ -455,7 +462,7 @@ function AppPostsPageContent() {
           </div>
           <button
             onClick={loadPosts}
-            className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm transition-all hover:bg-gray-50"
+            className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm transition-all hover:bg-gray-50 whitespace-nowrap"
           >
             🔄 Refresh
           </button>
@@ -489,10 +496,11 @@ function AppPostsPageContent() {
                   key={post.id}
                   className="group relative overflow-hidden rounded-xl border border-gray-200 bg-white p-5 shadow-sm transition-all hover:border-blue-300 hover:shadow-md"
                 >
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                      <div className="flex items-center space-x-3 mb-3">
-                        <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-gradient-to-br from-green-500 to-emerald-500 text-white font-bold">
+                  <div className="space-y-4">
+                    {/* Post Header */}
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex items-center space-x-3 flex-1 min-w-0">
+                        <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-gradient-to-br from-green-500 to-emerald-500 text-white font-bold flex-shrink-0">
                           {post.group.name.charAt(0).toUpperCase()}
                         </div>
                         <div className="flex-1 min-w-0">
@@ -514,92 +522,9 @@ function AppPostsPageContent() {
                           )}
                         </div>
                       </div>
-                      <p className="text-sm text-gray-700 whitespace-pre-line line-clamp-3">
-                        <RichText text={post.content} className="text-sm" />
-                      </p>
-                      {/* Show all scheduled times with their statuses */}
-                      {post.scheduledTimes && post.scheduledTimes.length > 0 && (
-                        <div className="mt-3 space-y-2">
-                          {post.scheduledTimes.map((st) => {
-                            const isPast = new Date(st.scheduledAt) < new Date()
-                            const canDelete = !isPast && st.status === "SCHEDULED"
-                            
-                            return (
-                              <div key={st.id} className="flex items-center justify-between rounded-lg border border-gray-200 bg-gray-50 p-2 text-xs flex-wrap gap-2">
-                                <div className="flex items-center space-x-2 flex-wrap">
-                                  <span className="text-gray-600">
-                                    {format(new Date(st.scheduledAt), "MMM d, yyyy 'at' h:mm a")}
-                                  </span>
-                                  {isPast && (
-                                    <span className="text-gray-400">(Past)</span>
-                                  )}
-                                </div>
-                                <div className="flex items-center space-x-2 flex-wrap">
-                                  <span
-                                    className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold ${
-                                      st.status === "SENT"
-                                        ? "bg-green-100 text-green-800"
-                                        : st.status === "FAILED"
-                                          ? "bg-red-100 text-red-800"
-                                          : st.status === "SCHEDULED"
-                                            ? "bg-blue-100 text-blue-800"
-                                            : "bg-gray-100 text-gray-800"
-                                    }`}
-                                  >
-                                    {st.status === "SENT" && "✓ "}
-                                    {st.status}
-                                  </span>
-                                  {canDelete && (
-                                    <button
-                                      onClick={async () => {
-                                        if (confirm("Delete this scheduled time?")) {
-                                          try {
-                                            const res = await fetch(`/api/scheduled-times/${st.id}`, {
-                                              method: "DELETE",
-                                              credentials: "include",
-                                            })
-                                            if (res.ok) {
-                                              setMessage("✅ Scheduled time deleted")
-                                              setTimeout(() => setMessage(null), 3000)
-                                              loadPosts()
-                                            } else {
-                                              const data = await res.json()
-                                              setMessage(data.error || "Failed to delete scheduled time")
-                                            }
-                                          } catch (error) {
-                                            setMessage("Failed to delete scheduled time")
-                                          }
-                                        }
-                                      }}
-                                      className="text-red-600 hover:text-red-800 transition-colors"
-                                      title="Delete this scheduled time"
-                                    >
-                                      <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                                      </svg>
-                                    </button>
-                                  )}
-                                </div>
-                              </div>
-                            )
-                          })}
-                        </div>
-                      )}
-                      {post.mediaUrls.length > 0 && (
-                        <div className="mt-3 flex items-center space-x-2 text-xs text-gray-500">
-                          <span>📎</span>
-                          <span>{post.mediaUrls.length} media file(s)</span>
-                        </div>
-                      )}
-                      {post.isPaidAd && (
-                        <div className="mt-3 inline-flex items-center rounded-full bg-purple-100 px-2 py-1 text-xs font-medium text-purple-700">
-                          💰 Paid Advertisement
-                        </div>
-                      )}
-                    </div>
-                    <div className="ml-4 flex flex-col items-end gap-2">
+                      {/* Status Badge */}
                       <span
-                        className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold ${
+                        className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold flex-shrink-0 ${
                           post.status === "SENT"
                             ? "bg-gradient-to-r from-green-100 to-emerald-100 text-green-800"
                             : post.status === "FAILED"
@@ -610,68 +535,164 @@ function AppPostsPageContent() {
                         {post.status === "SENT" && "✓ "}
                         {post.status}
                       </span>
-                      <div className="flex gap-1">
-                        <button
-                          onClick={() => {
-                            // Duplicate post (copy without editing)
-                            setEditingPost(null) // Clear any existing edit
-                            setForm({
-                              ...initialPost,
-                              groupId: post.group.id,
-                              content: post.content,
-                              mediaUrls: post.mediaUrls,
-                              scheduledTimes: [], // Start with empty times, user can add new ones
-                            })
-                            // Scroll to form
-                            document.getElementById("post-form")?.scrollIntoView({ behavior: "smooth" })
-                          }}
-                          className="rounded px-2 py-1 text-xs text-blue-600 hover:bg-blue-50"
-                          title="Copy Post"
-                        >
-                          📋
-                        </button>
-                        <button
-                          onClick={() => {
-                            // Edit post - allow editing even if all times are sent
-                            setEditingPost(post)
-                            // Get only SCHEDULED times for editing (SENT times are kept for stats)
-      const scheduledTimes = post.scheduledTimes?.filter((st) => st.status === "SCHEDULED") || []
-      const now = new Date()
-      const times = scheduledTimes.length > 0
-        ? scheduledTimes
-            .map((st) => ({
-              time: new Date(st.scheduledAt).toISOString().slice(0, 16),
-              isFree: st.isFreePost || false,
-            }))
-            .filter((st) => new Date(st.time) > now) // Only include future times
-        : [] // Start with empty if all times are sent, user can add new ones
-                              
-                            setForm({
-                              groupId: post.group.id,
-                              content: post.content,
-                              mediaUrls: post.mediaUrls,
-                              scheduledTimes: times.map((t) => ({ time: new Date(t.time).toISOString(), isFree: t.isFree })),
-                              isRecurring: false,
-                              recurrencePattern: "daily",
-                              recurrenceInterval: 1,
-                              recurrenceEndDate: "",
-                              recurrenceCount: undefined,
-                            })
-                            document.getElementById("post-form")?.scrollIntoView({ behavior: "smooth" })
-                          }}
-                          className="rounded px-2 py-1 text-xs text-green-600 hover:bg-green-50"
-                          title="Edit Post"
-                        >
-                          ✏️
-                        </button>
-                        <button
-                          onClick={() => setShowDeleteConfirm(post.id)}
-                          className="rounded px-2 py-1 text-xs text-red-600 hover:bg-red-50"
-                          title="Delete"
-                        >
-                          🗑️
-                        </button>
+                    </div>
+
+                    {/* Post Content */}
+                    <div>
+                      <p className="text-sm text-gray-700 whitespace-pre-line">
+                        <RichText text={post.content} className="text-sm" />
+                      </p>
+                    </div>
+
+                    {/* Scheduled Times */}
+                    {post.scheduledTimes && post.scheduledTimes.length > 0 && (
+                      <div className="space-y-2">
+                        {post.scheduledTimes.map((st) => {
+                          const isPast = new Date(st.scheduledAt) < new Date()
+                          const canDelete = !isPast && st.status === "SCHEDULED"
+                          
+                          return (
+                            <div key={st.id} className="flex items-center justify-between rounded-lg border border-gray-200 bg-gray-50 p-2 text-xs flex-wrap gap-2">
+                              <div className="flex items-center space-x-2 flex-wrap">
+                                <span className="text-gray-600">
+                                  {format(new Date(st.scheduledAt), "MMM d, yyyy 'at' h:mm a")}
+                                </span>
+                                {isPast && (
+                                  <span className="text-gray-400">(Past)</span>
+                                )}
+                              </div>
+                              <div className="flex items-center space-x-2 flex-wrap">
+                                <span
+                                  className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold ${
+                                    st.status === "SENT"
+                                      ? "bg-green-100 text-green-800"
+                                      : st.status === "FAILED"
+                                        ? "bg-red-100 text-red-800"
+                                        : st.status === "SCHEDULED"
+                                          ? "bg-blue-100 text-blue-800"
+                                          : "bg-gray-100 text-gray-800"
+                                  }`}
+                                >
+                                  {st.status === "SENT" && "✓ "}
+                                  {st.status}
+                                </span>
+                                {canDelete && (
+                                  <button
+                                    onClick={async () => {
+                                      if (confirm("Delete this scheduled time?")) {
+                                        try {
+                                          const res = await fetch(`/api/scheduled-times/${st.id}`, {
+                                            method: "DELETE",
+                                            credentials: "include",
+                                          })
+                                          if (res.ok) {
+                                            setMessage("✅ Scheduled time deleted")
+                                            setTimeout(() => setMessage(null), 3000)
+                                            loadPosts()
+                                          } else {
+                                            const data = await res.json()
+                                            setMessage(data.error || "Failed to delete scheduled time")
+                                          }
+                                        } catch (error) {
+                                          setMessage("Failed to delete scheduled time")
+                                        }
+                                      }
+                                    }}
+                                    className="text-red-600 hover:text-red-800 transition-colors"
+                                    title="Delete this scheduled time"
+                                  >
+                                    <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                    </svg>
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+                          )
+                        })}
                       </div>
+                    )}
+
+                    {/* Media and Paid Ad Badges */}
+                    <div className="flex items-center gap-3 flex-wrap">
+                      {post.mediaUrls.length > 0 && (
+                        <div className="flex items-center space-x-2 text-xs text-gray-500">
+                          <span>📎</span>
+                          <span>{post.mediaUrls.length} media file(s)</span>
+                        </div>
+                      )}
+                      {post.isPaidAd && (
+                        <div className="inline-flex items-center rounded-full bg-purple-100 px-2 py-1 text-xs font-medium text-purple-700">
+                          💰 Paid Advertisement
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Action Buttons - Now below the post content */}
+                    <div className="flex items-center gap-2 pt-2 border-t border-gray-100">
+                      <button
+                        onClick={() => {
+                          // Duplicate post (copy without editing)
+                          setEditingPost(null) // Clear any existing edit
+                          setForm({
+                            ...initialPost,
+                            groupId: post.group.id,
+                            content: post.content,
+                            mediaUrls: post.mediaUrls,
+                            scheduledTimes: [], // Start with empty times, user can add new ones
+                          })
+                          // Scroll to form
+                          document.getElementById("post-form")?.scrollIntoView({ behavior: "smooth" })
+                        }}
+                        className="flex items-center gap-1.5 rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 shadow-sm transition-all hover:bg-gray-50 hover:border-gray-400"
+                        title="Copy Post"
+                      >
+                        <span>📋</span>
+                        <span>Copy</span>
+                      </button>
+                      <button
+                        onClick={() => {
+                          // Edit post - allow editing even if all times are sent
+                          setEditingPost(post)
+                          // Get only SCHEDULED times for editing (SENT times are kept for stats)
+                          const scheduledTimes = post.scheduledTimes?.filter((st) => st.status === "SCHEDULED") || []
+                          const now = new Date()
+                          const times = scheduledTimes.length > 0
+                            ? scheduledTimes
+                                .map((st) => ({
+                                  time: new Date(st.scheduledAt).toISOString().slice(0, 16),
+                                  isFree: st.isFreePost || false,
+                                }))
+                                .filter((st) => new Date(st.time) > now) // Only include future times
+                            : [] // Start with empty if all times are sent, user can add new ones
+                            
+                          setForm({
+                            groupId: post.group.id,
+                            content: post.content,
+                            mediaUrls: post.mediaUrls,
+                            scheduledTimes: times.map((t) => ({ time: new Date(t.time).toISOString(), isFree: t.isFree })),
+                            isRecurring: false,
+                            recurrencePattern: "daily",
+                            recurrenceInterval: 1,
+                            recurrenceEndDate: "",
+                            recurrenceCount: undefined,
+                          })
+                          document.getElementById("post-form")?.scrollIntoView({ behavior: "smooth" })
+                        }}
+                        className="flex items-center gap-1.5 rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 shadow-sm transition-all hover:bg-gray-50 hover:border-gray-400"
+                        title="Edit Post"
+                      >
+                        <span>✏️</span>
+                        <span>Edit</span>
+                      </button>
+                      <button
+                        onClick={() => setShowDeleteConfirm(post.id)}
+                        className="flex items-center gap-1.5 rounded-lg border border-red-300 bg-white px-3 py-1.5 text-xs font-medium text-red-700 shadow-sm transition-all hover:bg-red-50 hover:border-red-400"
+                        title="Delete"
+                      >
+                        <span>🗑️</span>
+                        <span>Delete</span>
+                      </button>
                     </div>
                   </div>
                 </div>
