@@ -61,7 +61,11 @@ export default function AppLayout({ children }: AppLayoutProps) {
 
   // Navigation - all users see the same links, plus admin link if admin
   // Dashboard access is controlled by subscription check in the pages
-  const navigation = [
+  type NavItem = 
+    | { name: string; href: string; icon: string }
+    | { name: string; icon: string; items: Array<{ name: string; href: string; icon: string }> }
+  
+  const navigation: NavItem[] = [
     { name: "Overview", href: "/app", icon: "overview" },
     { name: "My Groups", href: "/app/groups", icon: "groups" },
     { 
@@ -180,7 +184,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
             {/* Desktop Navigation */}
             <div className="hidden lg:flex lg:items-center lg:space-x-1">
               {navigation.map((item) => {
-                if ('items' in item) {
+                if ('items' in item && item.items) {
                   // Dropdown menu item
                   const isAnyActive = item.items.some(subItem => isActive(subItem.href))
                   return (
@@ -231,7 +235,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
                       )}
                     </div>
                   )
-                } else {
+                } else if ('href' in item) {
                   // Regular menu item
                   return (
                     <Link
@@ -250,16 +254,16 @@ export default function AppLayout({ children }: AppLayoutProps) {
                     </Link>
                   )
                 }
+                return null
               })}
             </div>
             
             {/* Tablet Navigation (simplified) */}
             <div className="hidden md:flex lg:hidden md:items-center md:space-x-1">
               {navigation.map((item) => {
-                if ('items' in item) {
+                if ('items' in item && item.items && item.items.length > 0) {
                   // For tablets, show first item as main link, dropdown for rest
                   const firstItem = item.items[0]
-                  const isAnyActive = item.items.some(subItem => isActive(subItem.href))
                   return (
                     <div key={item.name} className="relative">
                       <Link
@@ -277,7 +281,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
                       </Link>
                     </div>
                   )
-                } else {
+                } else if ('href' in item) {
                   return (
                     <Link
                       key={item.name}
@@ -295,6 +299,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
                     </Link>
                   )
                 }
+                return null
               })}
             </div>
 
@@ -355,7 +360,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
           <div className="md:hidden border-t border-gray-200 bg-white/95 backdrop-blur-lg">
             <div className="space-y-1 px-4 pb-4 pt-2">
               {navigation.map((item) => {
-                if ('items' in item) {
+                if ('items' in item && item.items) {
                   // Dropdown menu item for mobile
                   const isAnyActive = item.items.some(subItem => isActive(subItem.href))
                   return (
@@ -409,7 +414,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
                       )}
                     </div>
                   )
-                } else {
+                } else if ('href' in item) {
                   // Regular menu item
                   return (
                     <Link
@@ -429,6 +434,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
                     </Link>
                   )
                 }
+                return null
               })}
             </div>
           </div>
