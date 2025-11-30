@@ -54,6 +54,8 @@ export async function GET(request: NextRequest) {
         stickyPostPrice: group.stickyPostPrice,
         stickyPostPeriodDays: group.stickyPostPeriodDays,
         freePostIntervalDays: group.freePostIntervalDays,
+        userId: group.userId, // Include user ID for checking ownership
+        user: group.user, // Include user object for getting owner info
     }
   })
 

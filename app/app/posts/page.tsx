@@ -7,6 +7,7 @@ import { format } from "date-fns"
 import FormattingToolbar from "@/components/editor/FormattingToolbar"
 import { FormatType, applyFormatting } from "@/lib/richText"
 import RichText from "@/components/RichText"
+import CreditRequestModal from "@/components/app/CreditRequestModal"
 
 type TelegramGroup = {
   id: string
@@ -15,6 +16,12 @@ type TelegramGroup = {
   pricePerPost: number
   freePostIntervalDays: number
   advertiserMessage: string | null
+  userId?: string
+  user?: {
+    id: string
+    name: string | null
+    telegramUsername: string | null
+  }
 }
 
 type ScheduledTime = {
@@ -78,6 +85,13 @@ function AppPostsPageContent() {
     lastFreePostDate: string | null
     isFreeGroup?: boolean
   } | null>(null)
+  const [creditsByOwner, setCreditsByOwner] = useState<Record<string, {
+    availableCredits: number
+    totalGranted: number
+    totalSpent: number
+  }>>({})
+  const [showCreditModal, setShowCreditModal] = useState(false)
+  const [selectedGroupOwnerId, setSelectedGroupOwnerId] = useState<string | null>(null)
 
   // Filter groups: must be verified AND owner must have active subscription
   const verifiedGroups = useMemo(() => {
@@ -90,6 +104,8 @@ function AppPostsPageContent() {
       freePostIntervalDays: g.freePostIntervalDays || 0,
       advertiserMessage: g.advertiserMessage,
       ownerHasActiveSubscription: g.ownerHasActiveSubscription,
+      userId: g.userId, // Keep user ID for checking if it's own group
+      user: g.user, // Keep user object for getting owner ID
     })) as TelegramGroup[]
   }, [groups])
 
@@ -275,13 +291,40 @@ function AppPostsPageContent() {
     }
   }
 
+  // Fetch credits for group owner when group is selected
+  const fetchCreditsForOwner = async (ownerId: string) => {
+    if (!ownerId) return
+    try {
+      const res = await fetch(`/api/credits/by-owner?ownerId=${ownerId}`, { credentials: "include" })
+      if (res.ok) {
+        const data = await res.json()
+        setCreditsByOwner((prev) => ({
+          ...prev,
+          [ownerId]: {
+            availableCredits: data.availableCredits || 0,
+            totalGranted: data.totalGranted || 0,
+            totalSpent: data.totalSpent || 0,
+          },
+        }))
+      }
+    } catch (error) {
+      console.error("Failed to fetch credits for owner:", error)
+    }
+  }
+
   useEffect(() => {
     if (form.groupId) {
       checkFreePostEligibility(form.groupId)
+      // Find the group owner and fetch credits
+      const selectedGroup = verifiedGroups.find((g) => g.id === form.groupId)
+      if (selectedGroup && (selectedGroup as any).user?.id) {
+        const ownerId = (selectedGroup as any).user.id
+        fetchCreditsForOwner(ownerId)
+      }
     } else {
       setFreePostEligibility(null)
     }
-  }, [form.groupId])
+  }, [form.groupId, verifiedGroups])
 
   const handleAddScheduledTime = () => {
     if (!newScheduledTime) return
@@ -775,12 +818,62 @@ function AppPostsPageContent() {
               )}
               {form.groupId && (() => {
                 const selectedGroup = verifiedGroups.find(g => g.id === form.groupId)
-                return selectedGroup?.advertiserMessage ? (
-                  <div className="mt-3 rounded-lg border border-blue-200 bg-blue-50 p-3">
-                    <p className="text-xs font-semibold text-blue-900 mb-1">Message from Group Owner:</p>
-                    <p className="text-sm text-blue-800 whitespace-pre-wrap">{selectedGroup.advertiserMessage}</p>
+                if (!selectedGroup) return null
+                const ownerId = (selectedGroup as any).user?.id
+                const creditsInfo = ownerId ? creditsByOwner[ownerId] : null
+                const isFreeGroup = selectedGroup.pricePerPost === 0
+                const isOwnGroup = (selectedGroup as any).userId === session?.user?.id
+                
+                return (
+                  <div className="mt-3 space-y-3">
+                    {/* Credits Display */}
+                    {!isOwnGroup && !isFreeGroup && ownerId && (
+                      <div className="rounded-lg border border-purple-200 bg-purple-50 p-3">
+                        <div className="flex items-center justify-between mb-2">
+                          <p className="text-xs font-semibold text-purple-900">Your Credits for This Owner</p>
+                          {creditsInfo ? (
+                            <span className={`text-sm font-bold ${
+                              creditsInfo.availableCredits > 0 ? "text-green-700" : "text-red-700"
+                            }`}>
+                              {creditsInfo.availableCredits} credits
+                            </span>
+                          ) : (
+                            <span className="text-xs text-purple-600">Loading...</span>
+                          )}
+                        </div>
+                        {creditsInfo && (
+                          <div className="text-xs text-purple-700 space-y-1">
+                            <p>Total granted: {creditsInfo.totalGranted} credits</p>
+                            <p>Total spent: {creditsInfo.totalSpent} credits</p>
+                            {creditsInfo.availableCredits < selectedGroup.pricePerPost && (
+                              <p className="text-red-700 font-semibold mt-2">
+                                ⚠️ Insufficient credits. You need {selectedGroup.pricePerPost} credits per post.
+                              </p>
+                            )}
+                          </div>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSelectedGroupOwnerId(ownerId)
+                            setShowCreditModal(true)
+                          }}
+                          className="mt-2 w-full rounded-lg bg-purple-600 px-3 py-1.5 text-xs font-semibold text-white transition-all hover:bg-purple-700"
+                        >
+                          💰 Request Credits
+                        </button>
+                      </div>
+                    )}
+                    
+                    {/* Advertiser Message */}
+                    {selectedGroup.advertiserMessage && (
+                      <div className="rounded-lg border border-blue-200 bg-blue-50 p-3">
+                        <p className="text-xs font-semibold text-blue-900 mb-1">Message from Group Owner:</p>
+                        <p className="text-sm text-blue-800 whitespace-pre-wrap">{selectedGroup.advertiserMessage}</p>
+                      </div>
+                    )}
                   </div>
-                ) : null
+                )
               })()}
             </div>
 
@@ -1216,6 +1309,47 @@ function AppPostsPageContent() {
           </div>
         </div>
       )}
+
+      {/* Credit Request Modal */}
+      <CreditRequestModal
+        isOpen={showCreditModal}
+        onClose={() => {
+          setShowCreditModal(false)
+          setSelectedGroupOwnerId(null)
+        }}
+        onSubmit={async (amount, reason, groupOwnerId, groupId) => {
+          try {
+            const res = await fetch("/api/credits/request", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              credentials: "include",
+              body: JSON.stringify({
+                amount,
+                reason,
+                groupOwnerId: groupOwnerId || selectedGroupOwnerId,
+                groupId: groupId || form.groupId || undefined,
+              }),
+            })
+
+            if (res.ok) {
+              setMessage("✅ Credit request submitted successfully!")
+              setTimeout(() => setMessage(null), 5000)
+              // Refresh credits for the owner
+              if (groupOwnerId || selectedGroupOwnerId) {
+                await fetchCreditsForOwner(groupOwnerId || selectedGroupOwnerId || "")
+              }
+            } else {
+              const data = await res.json()
+              throw new Error(data.error || "Failed to submit request")
+            }
+          } catch (error: any) {
+            throw new Error(error.message || "An error occurred")
+          }
+        }}
+        preselectedGroupOwnerId={selectedGroupOwnerId || undefined}
+        preselectedGroupId={form.groupId || undefined}
+        currentCredits={creditsByOwner[selectedGroupOwnerId || ""]?.availableCredits || 0}
+      />
     </div>
   )
 }
