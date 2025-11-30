@@ -309,19 +309,22 @@ export default function AppLayout({ children }: AppLayoutProps) {
                 <p className="text-xs text-gray-500">Signed in as</p>
                 <p className="text-sm font-medium text-gray-900">{displayName}</p>
               </div>
-              <button
-                onClick={async () => {
-                  // Clear any Telegram widget data from localStorage
-                  if (typeof window !== "undefined") {
-                    localStorage.removeItem("telegram_widget_data")
-                    localStorage.removeItem("telegram_auth_data")
-                  }
-                  await signOut({ callbackUrl: "/", redirect: true })
-                }}
-                className="rounded-xl border border-gray-200 bg-white px-4 py-2 text-sm font-semibold text-gray-700 shadow-sm transition-all hover:bg-gray-50 hover:shadow-md hover:border-gray-300"
-              >
-                Sign Out
-              </button>
+              {/* Hide sign out in Telegram mini app - users should stay signed in */}
+              {!isTelegram && (
+                <button
+                  onClick={async () => {
+                    // Clear any Telegram widget data from localStorage
+                    if (typeof window !== "undefined") {
+                      localStorage.removeItem("telegram_widget_data")
+                      localStorage.removeItem("telegram_auth_data")
+                    }
+                    await signOut({ callbackUrl: "/", redirect: true })
+                  }}
+                  className="rounded-xl border border-gray-200 bg-white px-4 py-2 text-sm font-semibold text-gray-700 shadow-sm transition-all hover:bg-gray-50 hover:shadow-md hover:border-gray-300"
+                >
+                  Sign Out
+                </button>
+              )}
 
               {/* Mobile menu button */}
               <button

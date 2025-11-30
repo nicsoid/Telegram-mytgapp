@@ -6,7 +6,7 @@ import { signIn } from "next-auth/react"
 import Script from "next/script"
 
 export default function TelegramLayout({ children }: { children: React.ReactNode }) {
-  const { data: session, status } = useSession()
+  const { data: session, status, update } = useSession()
   const [isTelegramWebApp, setIsTelegramWebApp] = useState(false)
   const [autoSignInAttempted, setAutoSignInAttempted] = useState(false)
 
@@ -106,6 +106,20 @@ export default function TelegramLayout({ children }: { children: React.ReactNode
             } else if (result?.ok) {
               console.log('[TelegramLayout] ✅ Auto-sign in successful!')
               setAutoSignInAttempted(true)
+              // Force session refresh to update immediately (no page reload needed)
+              // Try multiple times to ensure it works
+              const refreshSession = () => {
+                update().then(() => {
+                  console.log('[TelegramLayout] ✅ Session updated')
+                }).catch((err) => {
+                  console.error('[TelegramLayout] ❌ Session update error:', err)
+                })
+              }
+              // Immediate refresh
+              refreshSession()
+              // Also refresh after short delays to ensure it sticks
+              setTimeout(refreshSession, 200)
+              setTimeout(refreshSession, 500)
             } else {
               console.warn('[TelegramLayout] ⚠️ Unexpected sign-in result:', result)
               setTimeout(() => {
@@ -145,21 +159,22 @@ export default function TelegramLayout({ children }: { children: React.ReactNode
   }, []) // Empty deps - run once on mount
 
   // Retry authentication when status is unauthenticated (but only if we're in Telegram)
+  // This also handles the case where user signs out - we auto-sign them back in
   useEffect(() => {
     if (typeof window === "undefined") return
-    if (status === "authenticated" && session?.user) return // Already authenticated
     
     const tg = (window as any).Telegram?.WebApp
     if (!tg) return // Not in Telegram WebApp
 
-    // If unauthenticated, try to authenticate
+    // If unauthenticated in Telegram, always try to authenticate
+    // This ensures users stay signed in even if they somehow sign out
     if (status === "unauthenticated" || !session?.user) {
       const lastAttempt = (window as any).lastAuthAttempt || 0
       const timeSinceLastAttempt = Date.now() - lastAttempt
       
-      // Only retry if it's been more than 2 seconds since last attempt
-      if (timeSinceLastAttempt > 2000) {
-        console.log('[TelegramLayout] 🔄 Retrying authentication (status:', status, ')')
+      // Only retry if it's been more than 1 second since last attempt
+      if (timeSinceLastAttempt > 1000) {
+        console.log('[TelegramLayout] 🔄 Auto-authenticating (status:', status, ')')
         
         let initData = tg.initData
         if (!initData && tg.initDataUnsafe) {
@@ -184,18 +199,31 @@ export default function TelegramLayout({ children }: { children: React.ReactNode
           })
             .then((result) => {
               if (result?.ok) {
-                console.log('[TelegramLayout] ✅ Retry successful!')
+                console.log('[TelegramLayout] ✅ Auto-auth successful!')
+                // Force session refresh immediately (no page reload needed)
+                const refreshSession = () => {
+                  update().then(() => {
+                    console.log('[TelegramLayout] ✅ Session updated')
+                  }).catch((err) => {
+                    console.error('[TelegramLayout] ❌ Session update error:', err)
+                  })
+                }
+                // Immediate refresh
+                refreshSession()
+                // Also refresh after short delays to ensure it sticks
+                setTimeout(refreshSession, 200)
+                setTimeout(refreshSession, 500)
               } else if (result?.error) {
-                console.error('[TelegramLayout] ❌ Retry failed:', result.error)
+                console.error('[TelegramLayout] ❌ Auto-auth failed:', result.error)
               }
             })
             .catch((error) => {
-              console.error('[TelegramLayout] ❌ Retry error:', error)
+              console.error('[TelegramLayout] ❌ Auto-auth error:', error)
             })
         }
       }
     }
-  }, [status, session])
+  }, [status, session, update])
 
   return (
     <>
