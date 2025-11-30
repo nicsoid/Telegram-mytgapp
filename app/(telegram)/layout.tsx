@@ -22,8 +22,12 @@ export default function TelegramLayout({ children }: { children: React.ReactNode
           
           // Auto-authenticate if in Telegram Mini App and not signed in
           const checkAndAuth = () => {
-            // Only attempt if we haven't already tried and session is not authenticated
-            if (status === "unauthenticated" && !autoSignInAttempted) {
+            // Only attempt if session is not authenticated or still loading
+            // Allow retries if session is still unauthenticated after a delay
+            const shouldAttempt = (status === "unauthenticated" || (!session?.user && status !== "loading")) && 
+                                  (!autoSignInAttempted || Date.now() - (window as any).lastAuthAttempt > 3000)
+            
+            if (shouldAttempt) {
               // Try multiple ways to get initData
               // tg.initData is the raw string from Telegram (preferred - this is what we need!)
               let initData = tg.initData
@@ -78,6 +82,7 @@ export default function TelegramLayout({ children }: { children: React.ReactNode
                 console.log('[TelegramLayout] initData length:', initData.length)
                 console.log('[TelegramLayout] initData preview:', initData.substring(0, 150))
                 setAutoSignInAttempted(true)
+                ;(window as any).lastAuthAttempt = Date.now()
                 
                 // Auto-sign in with Telegram WebApp data
                 signIn("credentials", {
@@ -91,18 +96,18 @@ export default function TelegramLayout({ children }: { children: React.ReactNode
                       // Reset after delay to allow retry
                       setTimeout(() => {
                         setAutoSignInAttempted(false)
+                        delete (window as any).lastAuthAttempt
                       }, 3000)
                     } else if (result?.ok) {
-                      console.log('[TelegramLayout] Auto-sign in successful, reloading page...')
-                      // Force a page refresh to ensure session is established
-                      setTimeout(() => {
-                        window.location.reload()
-                      }, 300)
+                      console.log('[TelegramLayout] Auto-sign in successful')
+                      // Don't reload - let NextAuth handle the session update
+                      // The session will update automatically via useSession
                     } else {
                       console.warn('[TelegramLayout] Auto-sign in returned unexpected result:', result)
                       // Reset after delay to allow retry
                       setTimeout(() => {
                         setAutoSignInAttempted(false)
+                        delete (window as any).lastAuthAttempt
                       }, 3000)
                     }
                   })
@@ -111,6 +116,7 @@ export default function TelegramLayout({ children }: { children: React.ReactNode
                     // Reset after delay to allow retry
                     setTimeout(() => {
                       setAutoSignInAttempted(false)
+                      delete (window as any).lastAuthAttempt
                     }, 3000)
                   })
               } else {
@@ -119,10 +125,6 @@ export default function TelegramLayout({ children }: { children: React.ReactNode
                 console.log('[TelegramLayout] tg.initData:', tg.initData)
                 console.log('[TelegramLayout] tg.initDataUnsafe:', tg.initDataUnsafe)
                 console.log('[TelegramLayout] tg.version:', tg.version)
-                // If no initData, wait a bit and try again (script might still be loading)
-                setTimeout(() => {
-                  setAutoSignInAttempted(false)
-                }, 2000)
               }
             }
           }
@@ -135,10 +137,12 @@ export default function TelegramLayout({ children }: { children: React.ReactNode
           const timeout1 = setTimeout(checkAndAuth, 500)
           const timeout2 = setTimeout(checkAndAuth, 1500)
           const timeout3 = setTimeout(checkAndAuth, 3000)
+          const timeout4 = setTimeout(checkAndAuth, 5000)
           return () => {
             clearTimeout(timeout1)
             clearTimeout(timeout2)
             clearTimeout(timeout3)
+            clearTimeout(timeout4)
           }
         }
       }
@@ -150,7 +154,7 @@ export default function TelegramLayout({ children }: { children: React.ReactNode
       const timeout = setTimeout(checkTelegram, 500)
       return () => clearTimeout(timeout)
     }
-  }, [status, autoSignInAttempted])
+  }, [status, session, autoSignInAttempted])
 
   return (
     <>
