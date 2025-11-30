@@ -5,6 +5,7 @@ import { useState, useEffect } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import CreditRequestModal from "@/components/app/CreditRequestModal"
+import AppLayout from "@/components/app/AppLayout"
 
 export default function TelegramMiniAppPage() {
   const { data: session, status } = useSession()
@@ -128,52 +129,36 @@ export default function TelegramMiniAppPage() {
   })() : null
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50">
-      {/* Header */}
-      <div className="sticky top-0 z-10 border-b border-gray-200 bg-white/80 backdrop-blur-lg shadow-sm">
-        <div className="px-4 py-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-2xl font-bold text-gray-900">MyTgApp</h1>
-              {displayName ? (
-                <p className="mt-1 text-sm text-gray-600">Signed in as {displayName}</p>
-              ) : (
-                <p className="mt-1 text-sm text-gray-500">Browse available groups</p>
+    <AppLayout>
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50">
+        {/* Authentication Status Banner */}
+        {!session?.user && isInTelegram && (
+          <div className="mx-4 mt-4 rounded-lg border border-blue-300 bg-blue-50 p-4">
+            <div className="flex items-center space-x-3">
+              <div className="text-2xl">⏳</div>
+              <div className="flex-1">
+                <p className="text-sm font-semibold text-blue-900">
+                  {status === "loading" ? "Authenticating..." : "Sign in to post"}
+                </p>
+                <p className="text-xs text-blue-800 mt-1">
+                  {status === "loading" 
+                    ? "Please wait while we sign you in automatically" 
+                    : "You can browse groups, but need to sign in to schedule posts"}
+                </p>
+              </div>
+              {status === "unauthenticated" && (
+                <button
+                  onClick={() => window.location.reload()}
+                  className="rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700 transition-colors"
+                >
+                  Retry
+                </button>
               )}
             </div>
-            {/* Role badge removed - all users are equal */}
           </div>
-        </div>
-      </div>
+        )}
 
-      {/* Authentication Status Banner */}
-      {!session?.user && isInTelegram && (
-        <div className="mx-4 mt-4 rounded-lg border border-blue-300 bg-blue-50 p-4">
-          <div className="flex items-center space-x-3">
-            <div className="text-2xl">⏳</div>
-            <div className="flex-1">
-              <p className="text-sm font-semibold text-blue-900">
-                {status === "loading" ? "Authenticating..." : "Sign in to post"}
-              </p>
-              <p className="text-xs text-blue-800 mt-1">
-                {status === "loading" 
-                  ? "Please wait while we sign you in automatically" 
-                  : "You can browse groups, but need to sign in to schedule posts"}
-              </p>
-            </div>
-            {status === "unauthenticated" && (
-              <button
-                onClick={() => window.location.reload()}
-                className="rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700 transition-colors"
-              >
-                Retry
-              </button>
-            )}
-          </div>
-        </div>
-      )}
-
-      <div className="px-4 py-6 space-y-6">
+        <div className="px-4 py-6 space-y-6">
         {/* Credits Balance - Only show if authenticated */}
         {session?.user && (
           <div className="rounded-xl border border-gray-200 bg-gradient-to-br from-blue-50 to-indigo-50 p-5 shadow-sm">
@@ -317,7 +302,8 @@ export default function TelegramMiniAppPage() {
         onSubmit={handleRequestCredits}
         currentCredits={credits}
       />
-    </div>
+      </div>
+    </AppLayout>
   )
 }
 
