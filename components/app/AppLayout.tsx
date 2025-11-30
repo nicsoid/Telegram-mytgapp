@@ -14,6 +14,20 @@ export default function AppLayout({ children }: AppLayoutProps) {
   const pathname = usePathname()
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [isTelegram, setIsTelegram] = useState(false)
+  const [openDropdown, setOpenDropdown] = useState<string | null>(null)
+  
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (openDropdown && !(event.target as Element).closest('.relative')) {
+        setOpenDropdown(null)
+      }
+    }
+    if (openDropdown) {
+      document.addEventListener('mousedown', handleClickOutside)
+      return () => document.removeEventListener('mousedown', handleClickOutside)
+    }
+  }, [openDropdown])
 
   // Check if we're in Telegram Mini App
   useEffect(() => {
@@ -50,12 +64,24 @@ export default function AppLayout({ children }: AppLayoutProps) {
   const navigation = [
     { name: "Overview", href: "/app", icon: "overview" },
     { name: "My Groups", href: "/app/groups", icon: "groups" },
-    { name: "My Posts", href: "/app/posts", icon: "posts" },
-    { name: "Credits", href: "/app/credits", icon: "credits" },
+    { 
+      name: "Posts", 
+      icon: "posts",
+      items: [
+        { name: "My Posts", href: "/app/posts", icon: "posts" },
+        { name: "Sticky Posts", href: "/app/sticky-posts", icon: "sticky-posts" },
+      ]
+    },
     { name: "Customers", href: "/app/customers", icon: "customers" },
-    { name: "Sticky Posts", href: "/app/sticky-posts", icon: "sticky-posts" },
-    { name: "Credit Requests", href: "/app/credit-requests", icon: "credit-requests" },
-    { name: "Subscriptions", href: "/app/subscriptions", icon: "subscriptions" },
+    { 
+      name: "Credits & Billing", 
+      icon: "credits",
+      items: [
+        { name: "Credits", href: "/app/credits", icon: "credits" },
+        { name: "Credit Requests", href: "/app/credit-requests", icon: "credit-requests" },
+        { name: "Subscriptions", href: "/app/subscriptions", icon: "subscriptions" },
+      ]
+    },
     ...(session?.user?.role === "ADMIN" ? [{ name: "Admin", href: "/admin", icon: "admin" }] : []),
   ]
 
@@ -152,23 +178,124 @@ export default function AppLayout({ children }: AppLayoutProps) {
             </div>
 
             {/* Desktop Navigation */}
-            <div className="hidden md:flex md:items-center md:space-x-2">
-              {navigation.map((item) => (
-                <Link
-                  key={item.name}
-                  href={item.href}
-                  className={`flex items-center space-x-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition-all duration-200 ${
-                    isActive(item.href)
-                      ? "bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-lg shadow-blue-500/30"
-                      : "text-gray-700 hover:bg-gray-100/80 hover:text-gray-900"
-                  }`}
-                >
-                  <span className={isActive(item.href) ? "text-white" : "text-gray-600"}>
-                    {getIcon(item.icon)}
-                  </span>
-                  <span>{item.name}</span>
-                </Link>
-              ))}
+            <div className="hidden lg:flex lg:items-center lg:space-x-1">
+              {navigation.map((item) => {
+                if ('items' in item) {
+                  // Dropdown menu item
+                  const isAnyActive = item.items.some(subItem => isActive(subItem.href))
+                  return (
+                    <div key={item.name} className="relative">
+                      <button
+                        onClick={() => setOpenDropdown(openDropdown === item.name ? null : item.name)}
+                        className={`flex items-center space-x-2 rounded-xl px-3 py-2.5 text-sm font-semibold transition-all duration-200 ${
+                          isAnyActive
+                            ? "bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-lg shadow-blue-500/30"
+                            : "text-gray-700 hover:bg-gray-100/80 hover:text-gray-900"
+                        }`}
+                      >
+                        <span className={isAnyActive ? "text-white" : "text-gray-600"}>
+                          {getIcon(item.icon)}
+                        </span>
+                        <span>{item.name}</span>
+                        <svg 
+                          className={`h-4 w-4 transition-transform ${openDropdown === item.name ? 'rotate-180' : ''}`}
+                          fill="none" 
+                          stroke="currentColor" 
+                          viewBox="0 0 24 24"
+                        >
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                        </svg>
+                      </button>
+                      {openDropdown === item.name && (
+                        <div className="absolute left-0 mt-2 w-56 rounded-xl border border-gray-200 bg-white shadow-lg z-50">
+                          <div className="py-1">
+                            {item.items.map((subItem) => (
+                              <Link
+                                key={subItem.name}
+                                href={subItem.href}
+                                onClick={() => setOpenDropdown(null)}
+                                className={`flex items-center space-x-3 px-4 py-2.5 text-sm font-medium transition-colors ${
+                                  isActive(subItem.href)
+                                    ? "bg-blue-50 text-blue-700"
+                                    : "text-gray-700 hover:bg-gray-50"
+                                }`}
+                              >
+                                <span className={isActive(subItem.href) ? "text-blue-600" : "text-gray-500"}>
+                                  {getIcon(subItem.icon)}
+                                </span>
+                                <span>{subItem.name}</span>
+                              </Link>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )
+                } else {
+                  // Regular menu item
+                  return (
+                    <Link
+                      key={item.name}
+                      href={item.href}
+                      className={`flex items-center space-x-2 rounded-xl px-3 py-2.5 text-sm font-semibold transition-all duration-200 ${
+                        isActive(item.href)
+                          ? "bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-lg shadow-blue-500/30"
+                          : "text-gray-700 hover:bg-gray-100/80 hover:text-gray-900"
+                      }`}
+                    >
+                      <span className={isActive(item.href) ? "text-white" : "text-gray-600"}>
+                        {getIcon(item.icon)}
+                      </span>
+                      <span>{item.name}</span>
+                    </Link>
+                  )
+                }
+              })}
+            </div>
+            
+            {/* Tablet Navigation (simplified) */}
+            <div className="hidden md:flex lg:hidden md:items-center md:space-x-1">
+              {navigation.map((item) => {
+                if ('items' in item) {
+                  // For tablets, show first item as main link, dropdown for rest
+                  const firstItem = item.items[0]
+                  const isAnyActive = item.items.some(subItem => isActive(subItem.href))
+                  return (
+                    <div key={item.name} className="relative">
+                      <Link
+                        href={firstItem.href}
+                        className={`flex items-center space-x-1 rounded-xl px-2 py-2.5 text-xs font-semibold transition-all duration-200 ${
+                          isActive(firstItem.href)
+                            ? "bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-lg shadow-blue-500/30"
+                            : "text-gray-700 hover:bg-gray-100/80 hover:text-gray-900"
+                        }`}
+                      >
+                        <span className={isActive(firstItem.href) ? "text-white" : "text-gray-600"}>
+                          {getIcon(item.icon)}
+                        </span>
+                        <span className="hidden xl:inline">{item.name}</span>
+                      </Link>
+                    </div>
+                  )
+                } else {
+                  return (
+                    <Link
+                      key={item.name}
+                      href={item.href}
+                      className={`flex items-center space-x-1 rounded-xl px-2 py-2.5 text-xs font-semibold transition-all duration-200 ${
+                        isActive(item.href)
+                          ? "bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-lg shadow-blue-500/30"
+                          : "text-gray-700 hover:bg-gray-100/80 hover:text-gray-900"
+                      }`}
+                    >
+                      <span className={isActive(item.href) ? "text-white" : "text-gray-600"}>
+                        {getIcon(item.icon)}
+                      </span>
+                      <span className="hidden xl:inline">{item.name}</span>
+                    </Link>
+                  )
+                }
+              })}
             </div>
 
             {/* User Menu */}
@@ -227,23 +354,82 @@ export default function AppLayout({ children }: AppLayoutProps) {
         {mobileMenuOpen && (
           <div className="md:hidden border-t border-gray-200 bg-white/95 backdrop-blur-lg">
             <div className="space-y-1 px-4 pb-4 pt-2">
-              {navigation.map((item) => (
-                <Link
-                  key={item.name}
-                  href={item.href}
-                  onClick={() => setMobileMenuOpen(false)}
-                  className={`flex items-center space-x-3 rounded-xl px-4 py-3 text-sm font-semibold transition-all ${
-                    isActive(item.href)
-                      ? "bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md"
-                      : "text-gray-700 hover:bg-gray-100"
-                  }`}
-                >
-                  <span className={isActive(item.href) ? "text-white" : "text-gray-600"}>
-                    {getIcon(item.icon)}
-                  </span>
-                  <span>{item.name}</span>
-                </Link>
-              ))}
+              {navigation.map((item) => {
+                if ('items' in item) {
+                  // Dropdown menu item for mobile
+                  const isAnyActive = item.items.some(subItem => isActive(subItem.href))
+                  return (
+                    <div key={item.name}>
+                      <button
+                        onClick={() => setOpenDropdown(openDropdown === item.name ? null : item.name)}
+                        className={`w-full flex items-center justify-between rounded-xl px-4 py-3 text-sm font-semibold transition-all ${
+                          isAnyActive
+                            ? "bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md"
+                            : "text-gray-700 hover:bg-gray-100"
+                        }`}
+                      >
+                        <div className="flex items-center space-x-3">
+                          <span className={isAnyActive ? "text-white" : "text-gray-600"}>
+                            {getIcon(item.icon)}
+                          </span>
+                          <span>{item.name}</span>
+                        </div>
+                        <svg 
+                          className={`h-5 w-5 transition-transform ${openDropdown === item.name ? 'rotate-180' : ''}`}
+                          fill="none" 
+                          stroke="currentColor" 
+                          viewBox="0 0 24 24"
+                        >
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                        </svg>
+                      </button>
+                      {openDropdown === item.name && (
+                        <div className="ml-4 mt-1 space-y-1">
+                          {item.items.map((subItem) => (
+                            <Link
+                              key={subItem.name}
+                              href={subItem.href}
+                              onClick={() => {
+                                setMobileMenuOpen(false)
+                                setOpenDropdown(null)
+                              }}
+                              className={`flex items-center space-x-3 rounded-lg px-4 py-2.5 text-sm font-medium transition-colors ${
+                                isActive(subItem.href)
+                                  ? "bg-blue-50 text-blue-700"
+                                  : "text-gray-700 hover:bg-gray-50"
+                              }`}
+                            >
+                              <span className={isActive(subItem.href) ? "text-blue-600" : "text-gray-500"}>
+                                {getIcon(subItem.icon)}
+                              </span>
+                              <span>{subItem.name}</span>
+                            </Link>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )
+                } else {
+                  // Regular menu item
+                  return (
+                    <Link
+                      key={item.name}
+                      href={item.href}
+                      onClick={() => setMobileMenuOpen(false)}
+                      className={`flex items-center space-x-3 rounded-xl px-4 py-3 text-sm font-semibold transition-all ${
+                        isActive(item.href)
+                          ? "bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md"
+                          : "text-gray-700 hover:bg-gray-100"
+                      }`}
+                    >
+                      <span className={isActive(item.href) ? "text-white" : "text-gray-600"}>
+                        {getIcon(item.icon)}
+                      </span>
+                      <span>{item.name}</span>
+                    </Link>
+                  )
+                }
+              })}
             </div>
           </div>
         )}
