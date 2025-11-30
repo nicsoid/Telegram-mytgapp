@@ -47,6 +47,15 @@ export default function TelegramLoginWidget({
     
     // Create wrapper function for callback
     ;(window as any).onTelegramAuth = (user: any) => {
+      // Check if we're in Telegram mini app - if so, use WebApp initData instead
+      const tg = (window as any).Telegram?.WebApp
+      if (tg && (tg.initData || tg.initDataUnsafe?.user)) {
+        console.log('[TelegramWidget] In mini app, using WebApp initData instead of widget')
+        // In mini app, we should use WebApp initData, not widget
+        // The layout will handle authentication
+        return
+      }
+      
       // Only include fields that actually exist
       const userData: Record<string, string> = {
         id: user.id.toString(),

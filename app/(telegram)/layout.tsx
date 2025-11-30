@@ -9,6 +9,36 @@ export default function TelegramLayout({ children }: { children: React.ReactNode
   const { data: session, status, update } = useSession()
   const [isTelegramWebApp, setIsTelegramWebApp] = useState(false)
   const [autoSignInAttempted, setAutoSignInAttempted] = useState(false)
+  const [isAuthenticating, setIsAuthenticating] = useState(true) // Show overlay during initial auth
+
+  // Prevent navigation during authentication
+  useEffect(() => {
+    if (typeof window === "undefined") return
+    if (!isAuthenticating) return
+
+    const preventNavigation = (e: BeforeUnloadEvent) => {
+      e.preventDefault()
+      e.returnValue = ''
+    }
+
+    const preventClick = (e: MouseEvent) => {
+      const target = e.target as HTMLElement
+      // Allow clicks on the overlay itself, but prevent navigation
+      if (target.tagName === 'A' || target.closest('a')) {
+        e.preventDefault()
+        e.stopPropagation()
+        return false
+      }
+    }
+
+    window.addEventListener('beforeunload', preventNavigation)
+    document.addEventListener('click', preventClick, true)
+
+    return () => {
+      window.removeEventListener('beforeunload', preventNavigation)
+      document.removeEventListener('click', preventClick, true)
+    }
+  }, [isAuthenticating])
 
   useEffect(() => {
     // Check if we're in Telegram WebApp
@@ -106,6 +136,7 @@ export default function TelegramLayout({ children }: { children: React.ReactNode
             } else if (result?.ok) {
               console.log('[TelegramLayout] ✅ Auto-sign in successful!')
               setAutoSignInAttempted(true)
+              setIsAuthenticating(false) // Hide overlay once authenticated
               // Force session refresh to update immediately (no page reload needed)
               // Try multiple times to ensure it works
               const refreshSession = () => {
@@ -144,17 +175,23 @@ export default function TelegramLayout({ children }: { children: React.ReactNode
     // Don't check status - just try if initData is available
     attemptAutoAuth(tg)
     
-    // Retry multiple times to ensure authentication happens
-    const timeout1 = setTimeout(() => attemptAutoAuth(tg), 500)
-    const timeout2 = setTimeout(() => attemptAutoAuth(tg), 1000)
-    const timeout3 = setTimeout(() => attemptAutoAuth(tg), 2000)
-    const timeout4 = setTimeout(() => attemptAutoAuth(tg), 4000)
+    // Retry multiple times to ensure authentication happens (faster attempts)
+    const timeout1 = setTimeout(() => attemptAutoAuth(tg), 200)
+    const timeout2 = setTimeout(() => attemptAutoAuth(tg), 500)
+    const timeout3 = setTimeout(() => attemptAutoAuth(tg), 1000)
+    const timeout4 = setTimeout(() => attemptAutoAuth(tg), 2000)
+    const timeout5 = setTimeout(() => {
+      // After 5 seconds, if still not authenticated, hide overlay but keep trying
+      setIsAuthenticating(false)
+      attemptAutoAuth(tg)
+    }, 5000)
     
     return () => {
       clearTimeout(timeout1)
       clearTimeout(timeout2)
       clearTimeout(timeout3)
       clearTimeout(timeout4)
+      clearTimeout(timeout5)
     }
   }, []) // Empty deps - run once on mount
 
@@ -172,9 +209,10 @@ export default function TelegramLayout({ children }: { children: React.ReactNode
       const lastAttempt = (window as any).lastAuthAttempt || 0
       const timeSinceLastAttempt = Date.now() - lastAttempt
       
-      // Only retry if it's been more than 1 second since last attempt
-      if (timeSinceLastAttempt > 1000) {
+      // Retry more aggressively - every 500ms if not authenticated
+      if (timeSinceLastAttempt > 500) {
         console.log('[TelegramLayout] 🔄 Auto-authenticating (status:', status, ')')
+        setIsAuthenticating(true) // Show overlay while retrying
         
         let initData = tg.initData
         if (!initData && tg.initDataUnsafe) {
@@ -200,6 +238,7 @@ export default function TelegramLayout({ children }: { children: React.ReactNode
             .then((result) => {
               if (result?.ok) {
                 console.log('[TelegramLayout] ✅ Auto-auth successful!')
+                setIsAuthenticating(false) // Hide overlay
                 // Force session refresh immediately (no page reload needed)
                 const refreshSession = () => {
                   update().then(() => {
@@ -215,13 +254,22 @@ export default function TelegramLayout({ children }: { children: React.ReactNode
                 setTimeout(refreshSession, 500)
               } else if (result?.error) {
                 console.error('[TelegramLayout] ❌ Auto-auth failed:', result.error)
+                // Keep trying, but hide overlay after 3 seconds
+                setTimeout(() => setIsAuthenticating(false), 3000)
               }
             })
             .catch((error) => {
               console.error('[TelegramLayout] ❌ Auto-auth error:', error)
+              setTimeout(() => setIsAuthenticating(false), 3000)
             })
+        } else {
+          // No initData - hide overlay after a delay
+          setTimeout(() => setIsAuthenticating(false), 2000)
         }
       }
+    } else if (status === "authenticated" && session?.user) {
+      // Authenticated - hide overlay
+      setIsAuthenticating(false)
     }
   }, [status, session, update])
 
@@ -248,6 +296,33 @@ export default function TelegramLayout({ children }: { children: React.ReactNode
           }}
         />
       )}
+      
+      {/* Blocking overlay during authentication - prevents navigation */}
+      {isAuthenticating && (status === "loading" || !session?.user) && (
+        <div 
+          className="fixed inset-0 z-[9999] flex items-center justify-center bg-white/95 backdrop-blur-sm"
+          onClick={(e) => e.preventDefault()}
+          onMouseDown={(e) => e.preventDefault()}
+          style={{ pointerEvents: 'all' }}
+        >
+          <div className="text-center max-w-sm px-6">
+            <div className="mb-6 text-6xl animate-spin">⏳</div>
+            <h2 className="mb-3 text-2xl font-bold text-gray-900">Signing you in...</h2>
+            <p className="mb-4 text-gray-600">
+              Please wait while we automatically sign you in with your Telegram account.
+            </p>
+            <p className="text-sm text-gray-500">
+              This should only take a few seconds. Do not navigate away.
+            </p>
+            <div className="mt-6">
+              <div className="mx-auto h-2 w-48 overflow-hidden rounded-full bg-gray-200">
+                <div className="h-full w-full animate-pulse bg-blue-600"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+      
       {children}
     </>
   )
