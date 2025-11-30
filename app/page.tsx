@@ -20,71 +20,78 @@ export default function HomePage() {
     if (typeof window === "undefined") return
     
     // Telegram injects Telegram.WebApp automatically when in Mini App
-    // We need to check for actual Telegram-specific data, not just the object existence
-    // The script might load in browser but won't have initData
+    // Check if Telegram.WebApp exists - if it does, we're in Telegram (even if initData isn't ready yet)
     const checkTelegram = (): boolean => {
       const tg = (window as any).Telegram?.WebApp
       if (!tg) {
         return false
       }
       
-      // Check for actual Telegram data - initData or initDataUnsafe must be present
-      // Also check platform to ensure we're in Telegram
+      // If Telegram.WebApp exists, we're in Telegram Mini App
+      // initData might not be available immediately, but it will be soon
       const hasInitData = !!(tg.initData || tg.initDataUnsafe?.user)
       const platform = tg.platform || ''
-      const isTelegramPlatform = platform === 'tdesktop' || platform === 'web' || platform === 'ios' || platform === 'android' || platform === 'macos' || platform === 'linux' || platform === 'windows'
       
-      // Only consider it Telegram if we have initData AND a valid platform
-      // OR if platform is explicitly set (Telegram sets this)
-      if (hasInitData && isTelegramPlatform) {
+      console.log('[HomePage] 🔍 Checking Telegram WebApp...')
+      console.log('[HomePage] Telegram.WebApp exists:', !!tg)
+      console.log('[HomePage] platform:', platform || 'not set')
+      console.log('[HomePage] initData:', tg.initData ? '✅ present' : '❌ missing')
+      console.log('[HomePage] initDataUnsafe:', tg.initDataUnsafe ? '✅ present' : '❌ missing')
+      
+      // If Telegram.WebApp exists, we're in Telegram (initData will be available soon)
+      // The layout will handle authentication once initData is ready
+      if (tg) {
         console.log('[HomePage] ✅ Telegram WebApp detected!')
-        console.log('[HomePage] WebApp version:', tg.version)
-        console.log('[HomePage] platform:', platform)
-        console.log('[HomePage] initData:', tg.initData ? '✅ present' : '❌ missing')
-        console.log('[HomePage] initDataUnsafe:', tg.initDataUnsafe ? '✅ present' : '❌ missing')
         tg.ready()
         tg.expand()
         setIsTelegram(true)
         return true
       }
       
-      // If script loaded but no initData, we're not in Telegram
-      if (tg && !hasInitData) {
-        console.log('[HomePage] ❌ Telegram script loaded but no initData - not in Telegram Mini App')
-        setIsTelegram(false)
-        return false
-      }
-      
       return false
     }
     
-    // Check immediately (Telegram should inject it synchronously)
+    // Load Telegram WebApp script if not already loaded
+    if (!(window as any).Telegram) {
+      const script = document.createElement('script')
+      script.src = 'https://telegram.org/js/telegram-web-app.js'
+      script.async = true
+      script.onload = () => {
+        console.log('[HomePage] Telegram WebApp script loaded')
+        checkTelegram()
+      }
+      document.head.appendChild(script)
+    }
+    
+    // Check immediately
     if (checkTelegram()) {
       return
     }
     
-    // If not found immediately, wait a bit and check again
-    // Sometimes it takes a moment for Telegram to inject the object
-    let timeout1: NodeJS.Timeout
-    let timeout2: NodeJS.Timeout
+    // If not found immediately, wait and check again multiple times
+    // Telegram might inject it asynchronously
+    const timeouts: NodeJS.Timeout[] = []
     
-    timeout1 = setTimeout(() => {
-      if (checkTelegram()) {
-        return
-      }
-      // Check one more time after a longer delay
-      timeout2 = setTimeout(() => {
-        if (checkTelegram()) {
-          return
-        }
-        console.log('[HomePage] ❌ Telegram WebApp not detected, showing landing page')
-        setIsTelegram(false)
-      }, 500)
-    }, 200)
+    timeouts.push(setTimeout(() => {
+      if (checkTelegram()) return
+    }, 100))
+    
+    timeouts.push(setTimeout(() => {
+      if (checkTelegram()) return
+    }, 300))
+    
+    timeouts.push(setTimeout(() => {
+      if (checkTelegram()) return
+    }, 500))
+    
+    timeouts.push(setTimeout(() => {
+      if (checkTelegram()) return
+      console.log('[HomePage] ❌ Telegram WebApp not detected after delays, showing landing page')
+      setIsTelegram(false)
+    }, 1000))
     
     return () => {
-      clearTimeout(timeout1)
-      if (timeout2) clearTimeout(timeout2)
+      timeouts.forEach(clearTimeout)
     }
   }, [])
 
