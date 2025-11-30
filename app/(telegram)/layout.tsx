@@ -23,7 +23,7 @@ export default function TelegramLayout({ children }: { children: React.ReactNode
           setIsTelegramWebApp(true)
           tg2.ready()
           tg2.expand()
-          // Don't call attemptAutoAuth here - let the main effect handle it
+          attemptAutoAuth(tg2)
         }
       }, 500)
       return () => clearTimeout(timeout)
@@ -34,20 +34,13 @@ export default function TelegramLayout({ children }: { children: React.ReactNode
     tg.expand()
 
     // Function to attempt auto-authentication
+    // This function doesn't check status - it always tries if initData is available
     const attemptAutoAuth = (telegramWebApp: any) => {
-      // Skip if already authenticated
-      // Check status dynamically to avoid stale closures
-      if (status === "authenticated" && session?.user) {
-        console.log('[TelegramLayout] User already authenticated, skipping')
-        return
-      }
-
       // Check if we've attempted recently (prevent spam)
       const lastAttempt = (window as any).lastAuthAttempt || 0
       const timeSinceLastAttempt = Date.now() - lastAttempt
-      if (timeSinceLastAttempt < 1000) {
-        console.log('[TelegramLayout] Recent attempt, waiting...', timeSinceLastAttempt, 'ms ago')
-        return
+      if (timeSinceLastAttempt < 500) {
+        return // Too soon, skip
       }
 
       // Try multiple ways to get initData
@@ -79,9 +72,9 @@ export default function TelegramLayout({ children }: { children: React.ReactNode
           }
           
           initData = params.toString()
-          console.log('[TelegramLayout] Converted initDataUnsafe to initData string')
+          console.log('[TelegramLayout] ✅ Converted initDataUnsafe to initData string')
         } catch (e) {
-          console.error('[TelegramLayout] Error converting initDataUnsafe:', e)
+          console.error('[TelegramLayout] ❌ Error converting initDataUnsafe:', e)
         }
       }
       
@@ -92,13 +85,10 @@ export default function TelegramLayout({ children }: { children: React.ReactNode
       }
       
       if (initData && initData.length > 0) {
-        console.log('[TelegramLayout] Auto-authenticating with Telegram WebApp initData')
+        console.log('[TelegramLayout] 🔐 Attempting auto-authentication...')
         console.log('[TelegramLayout] initData length:', initData.length)
-        console.log('[TelegramLayout] initData preview:', initData.substring(0, 150))
-        console.log('[TelegramLayout] Current session status:', status)
-        console.log('[TelegramLayout] Current session user:', session?.user?.id || 'none')
+        console.log('[TelegramLayout] initData preview:', initData.substring(0, 100) + '...')
         
-        // Don't set attempted flag yet - let it retry if needed
         ;(window as any).lastAuthAttempt = Date.now()
         
         // Auto-sign in with Telegram WebApp data
@@ -107,56 +97,44 @@ export default function TelegramLayout({ children }: { children: React.ReactNode
           redirect: false,
         })
           .then((result) => {
-            console.log('[TelegramLayout] Sign-in result:', result)
             if (result?.error) {
-              console.error('[TelegramLayout] Auto-sign in failed:', result.error)
-              console.error('[TelegramLayout] Error details:', result)
-              // Reset after delay to allow retry
+              console.error('[TelegramLayout] ❌ Auto-sign in failed:', result.error)
+              // Retry after delay
               setTimeout(() => {
-                setAutoSignInAttempted(false)
                 delete (window as any).lastAuthAttempt
-              }, 2000)
+              }, 3000)
             } else if (result?.ok) {
               console.log('[TelegramLayout] ✅ Auto-sign in successful!')
               setAutoSignInAttempted(true)
-              // Force session refresh by triggering a re-render
-              // The useSession hook will update automatically
             } else {
-              console.warn('[TelegramLayout] Auto-sign in returned unexpected result:', result)
-              // Reset after delay to allow retry
+              console.warn('[TelegramLayout] ⚠️ Unexpected sign-in result:', result)
               setTimeout(() => {
-                setAutoSignInAttempted(false)
                 delete (window as any).lastAuthAttempt
-              }, 2000)
+              }, 3000)
             }
           })
           .catch((error) => {
-            console.error('[TelegramLayout] Auto-sign in error:', error)
-            console.error('[TelegramLayout] Error stack:', error.stack)
-            // Reset after delay to allow retry
+            console.error('[TelegramLayout] ❌ Auto-sign in error:', error)
             setTimeout(() => {
-              setAutoSignInAttempted(false)
               delete (window as any).lastAuthAttempt
-            }, 2000)
+            }, 3000)
           })
       } else {
-        console.warn('[TelegramLayout] Telegram WebApp detected but no initData available')
-        console.log('[TelegramLayout] Available WebApp properties:', Object.keys(telegramWebApp))
-        console.log('[TelegramLayout] tg.initData:', telegramWebApp.initData)
-        console.log('[TelegramLayout] tg.initDataUnsafe:', telegramWebApp.initDataUnsafe)
-        console.log('[TelegramLayout] tg.version:', telegramWebApp.version)
+        console.warn('[TelegramLayout] ⚠️ No initData available')
+        console.log('[TelegramLayout] tg.initData:', telegramWebApp.initData ? '✅ present' : '❌ missing')
+        console.log('[TelegramLayout] tg.initDataUnsafe:', telegramWebApp.initDataUnsafe ? '✅ present' : '❌ missing')
       }
     }
 
-    // Try immediately - attemptAutoAuth will check if already authenticated
+    // Always try to authenticate when in Telegram WebApp
+    // Don't check status - just try if initData is available
     attemptAutoAuth(tg)
     
-    // Also try after delays in case session is still initializing or initData becomes available
-    // attemptAutoAuth will check authentication status internally
+    // Retry multiple times to ensure authentication happens
     const timeout1 = setTimeout(() => attemptAutoAuth(tg), 500)
-    const timeout2 = setTimeout(() => attemptAutoAuth(tg), 1500)
-    const timeout3 = setTimeout(() => attemptAutoAuth(tg), 3000)
-    const timeout4 = setTimeout(() => attemptAutoAuth(tg), 5000)
+    const timeout2 = setTimeout(() => attemptAutoAuth(tg), 1000)
+    const timeout3 = setTimeout(() => attemptAutoAuth(tg), 2000)
+    const timeout4 = setTimeout(() => attemptAutoAuth(tg), 4000)
     
     return () => {
       clearTimeout(timeout1)
@@ -164,23 +142,24 @@ export default function TelegramLayout({ children }: { children: React.ReactNode
       clearTimeout(timeout3)
       clearTimeout(timeout4)
     }
-  }, [status, session, autoSignInAttempted])
+  }, []) // Empty deps - run once on mount
 
-  // Separate effect to retry authentication when status changes to unauthenticated
+  // Retry authentication when status is unauthenticated (but only if we're in Telegram)
   useEffect(() => {
     if (typeof window === "undefined") return
+    if (status === "authenticated" && session?.user) return // Already authenticated
     
     const tg = (window as any).Telegram?.WebApp
-    if (!tg) return
+    if (!tg) return // Not in Telegram WebApp
 
-    // If status changed to unauthenticated and we haven't tried recently, retry
-    if (status === "unauthenticated" && (!session || !(session as any).user)) {
+    // If unauthenticated, try to authenticate
+    if (status === "unauthenticated" || !session?.user) {
       const lastAttempt = (window as any).lastAuthAttempt || 0
       const timeSinceLastAttempt = Date.now() - lastAttempt
       
-      // Only retry if it's been more than 3 seconds since last attempt
-      if (timeSinceLastAttempt > 3000) {
-        console.log('[TelegramLayout] Status changed to unauthenticated, retrying auth...')
+      // Only retry if it's been more than 2 seconds since last attempt
+      if (timeSinceLastAttempt > 2000) {
+        console.log('[TelegramLayout] 🔄 Retrying authentication (status:', status, ')')
         
         let initData = tg.initData
         if (!initData && tg.initDataUnsafe) {
@@ -204,13 +183,14 @@ export default function TelegramLayout({ children }: { children: React.ReactNode
             redirect: false,
           })
             .then((result) => {
-              console.log('[TelegramLayout] Retry sign-in result:', result)
               if (result?.ok) {
                 console.log('[TelegramLayout] ✅ Retry successful!')
+              } else if (result?.error) {
+                console.error('[TelegramLayout] ❌ Retry failed:', result.error)
               }
             })
             .catch((error) => {
-              console.error('[TelegramLayout] Retry error:', error)
+              console.error('[TelegramLayout] ❌ Retry error:', error)
             })
         }
       }
