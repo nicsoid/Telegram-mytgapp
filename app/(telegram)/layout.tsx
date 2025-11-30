@@ -23,7 +23,7 @@ export default function TelegramLayout({ children }: { children: React.ReactNode
           setIsTelegramWebApp(true)
           tg2.ready()
           tg2.expand()
-          attemptAutoAuth(tg2)
+          // Don't call attemptAutoAuth here - let the main effect handle it
         }
       }, 500)
       return () => clearTimeout(timeout)
@@ -36,6 +36,7 @@ export default function TelegramLayout({ children }: { children: React.ReactNode
     // Function to attempt auto-authentication
     const attemptAutoAuth = (telegramWebApp: any) => {
       // Skip if already authenticated
+      // Check status dynamically to avoid stale closures
       if (status === "authenticated" && session?.user) {
         console.log('[TelegramLayout] User already authenticated, skipping')
         return
@@ -44,8 +45,8 @@ export default function TelegramLayout({ children }: { children: React.ReactNode
       // Check if we've attempted recently (prevent spam)
       const lastAttempt = (window as any).lastAuthAttempt || 0
       const timeSinceLastAttempt = Date.now() - lastAttempt
-      if (timeSinceLastAttempt < 2000 && autoSignInAttempted) {
-        console.log('[TelegramLayout] Recent attempt, waiting...')
+      if (timeSinceLastAttempt < 1000) {
+        console.log('[TelegramLayout] Recent attempt, waiting...', timeSinceLastAttempt, 'ms ago')
         return
       }
 
@@ -97,7 +98,7 @@ export default function TelegramLayout({ children }: { children: React.ReactNode
         console.log('[TelegramLayout] Current session status:', status)
         console.log('[TelegramLayout] Current session user:', session?.user?.id || 'none')
         
-        setAutoSignInAttempted(true)
+        // Don't set attempted flag yet - let it retry if needed
         ;(window as any).lastAuthAttempt = Date.now()
         
         // Auto-sign in with Telegram WebApp data
@@ -109,27 +110,34 @@ export default function TelegramLayout({ children }: { children: React.ReactNode
             console.log('[TelegramLayout] Sign-in result:', result)
             if (result?.error) {
               console.error('[TelegramLayout] Auto-sign in failed:', result.error)
+              console.error('[TelegramLayout] Error details:', result)
               // Reset after delay to allow retry
               setTimeout(() => {
                 setAutoSignInAttempted(false)
-              }, 3000)
+                delete (window as any).lastAuthAttempt
+              }, 2000)
             } else if (result?.ok) {
-              console.log('[TelegramLayout] Auto-sign in successful')
-              // Session will update automatically via useSession
+              console.log('[TelegramLayout] ✅ Auto-sign in successful!')
+              setAutoSignInAttempted(true)
+              // Force session refresh by triggering a re-render
+              // The useSession hook will update automatically
             } else {
               console.warn('[TelegramLayout] Auto-sign in returned unexpected result:', result)
               // Reset after delay to allow retry
               setTimeout(() => {
                 setAutoSignInAttempted(false)
-              }, 3000)
+                delete (window as any).lastAuthAttempt
+              }, 2000)
             }
           })
           .catch((error) => {
             console.error('[TelegramLayout] Auto-sign in error:', error)
+            console.error('[TelegramLayout] Error stack:', error.stack)
             // Reset after delay to allow retry
             setTimeout(() => {
               setAutoSignInAttempted(false)
-            }, 3000)
+              delete (window as any).lastAuthAttempt
+            }, 2000)
           })
       } else {
         console.warn('[TelegramLayout] Telegram WebApp detected but no initData available')
@@ -157,6 +165,57 @@ export default function TelegramLayout({ children }: { children: React.ReactNode
       clearTimeout(timeout4)
     }
   }, [status, session, autoSignInAttempted])
+
+  // Separate effect to retry authentication when status changes to unauthenticated
+  useEffect(() => {
+    if (typeof window === "undefined") return
+    
+    const tg = (window as any).Telegram?.WebApp
+    if (!tg) return
+
+    // If status changed to unauthenticated and we haven't tried recently, retry
+    if (status === "unauthenticated" && !session?.user) {
+      const lastAttempt = (window as any).lastAuthAttempt || 0
+      const timeSinceLastAttempt = Date.now() - lastAttempt
+      
+      // Only retry if it's been more than 3 seconds since last attempt
+      if (timeSinceLastAttempt > 3000) {
+        console.log('[TelegramLayout] Status changed to unauthenticated, retrying auth...')
+        
+        let initData = tg.initData
+        if (!initData && tg.initDataUnsafe) {
+          try {
+            const params = new URLSearchParams()
+            if (tg.initDataUnsafe.user) params.set('user', JSON.stringify(tg.initDataUnsafe.user))
+            if (tg.initDataUnsafe.auth_date) params.set('auth_date', tg.initDataUnsafe.auth_date.toString())
+            if (tg.initDataUnsafe.hash) params.set('hash', tg.initDataUnsafe.hash)
+            if (tg.initDataUnsafe.query_id) params.set('query_id', tg.initDataUnsafe.query_id)
+            if (tg.initDataUnsafe.start_param) params.set('start_param', tg.initDataUnsafe.start_param)
+            initData = params.toString()
+          } catch (e) {
+            console.error('[TelegramLayout] Error converting initDataUnsafe:', e)
+          }
+        }
+        
+        if (initData && initData.length > 0) {
+          ;(window as any).lastAuthAttempt = Date.now()
+          signIn("credentials", {
+            initData,
+            redirect: false,
+          })
+            .then((result) => {
+              console.log('[TelegramLayout] Retry sign-in result:', result)
+              if (result?.ok) {
+                console.log('[TelegramLayout] ✅ Retry successful!')
+              }
+            })
+            .catch((error) => {
+              console.error('[TelegramLayout] Retry error:', error)
+            })
+        }
+      }
+    }
+  }, [status, session])
 
   return (
     <>

@@ -17,9 +17,14 @@ export default function TelegramMiniAppPage() {
   const [showAuthError, setShowAuthError] = useState(false)
 
   useEffect(() => {
+    // Always fetch groups (public listing)
+    fetchGroups()
+    
+    // Only fetch credits if authenticated
     if (session?.user) {
       fetchCredits()
-      fetchGroups()
+    } else {
+      setLoading(false)
     }
   }, [session])
 
@@ -102,81 +107,13 @@ export default function TelegramMiniAppPage() {
     }
   }, [status, session])
 
-  if (status === "loading" && !authTimeout) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100">
-        <div className="text-center">
-          <div className="mb-4 text-4xl">⏳</div>
-          <p className="text-gray-600">Authenticating...</p>
-          <p className="mt-2 text-sm text-gray-500">Please wait while we sign you in</p>
-        </div>
-      </div>
-    )
-  }
+  // Check if we're in Telegram WebApp
+  const isInTelegram = typeof window !== "undefined" && (window as any).Telegram?.WebApp
+  
+  // Don't block page - always show groups (public listing)
+  // Show authentication status as banner if needed
 
-  if (!session?.user) {
-    // Check if we're in Telegram WebApp
-    const isInTelegram = typeof window !== "undefined" && (window as any).Telegram?.WebApp
-    
-    // If in Telegram, wait longer for auto-auth to complete (up to 8 seconds)
-    if (isInTelegram && (status === "loading" || status === "unauthenticated")) {
-      if (showAuthError) {
-        return (
-          <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 px-4">
-            <div className="text-center max-w-md">
-              <div className="mb-4 text-4xl">⚠️</div>
-              <p className="text-gray-600 mb-2">Authentication Issue</p>
-              <p className="text-sm text-gray-500 mb-4">
-                We're having trouble signing you in automatically. This might be because:
-              </p>
-              <ul className="text-sm text-gray-500 mb-4 text-left list-disc list-inside space-y-1">
-                <li>The bot token is not configured correctly</li>
-                <li>Your Telegram account is not verified</li>
-                <li>There was an error during authentication</li>
-              </ul>
-              <button
-                onClick={() => window.location.reload()}
-                className="rounded-lg bg-blue-600 px-4 py-2 text-white font-medium hover:bg-blue-700 transition-colors"
-              >
-                Refresh Page
-              </button>
-              <p className="mt-4 text-xs text-gray-400">
-                Check the browser console for error messages
-              </p>
-            </div>
-          </div>
-        )
-      }
-      
-      return (
-        <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 px-4">
-          <div className="text-center">
-            <div className="mb-4 text-4xl">⏳</div>
-            <p className="text-gray-600">Authenticating...</p>
-            <p className="mt-2 text-sm text-gray-500">Please wait while we sign you in automatically</p>
-            <p className="mt-4 text-xs text-gray-400">
-              If this takes too long, try refreshing the page
-            </p>
-          </div>
-        </div>
-      )
-    }
-    
-    // Not in Telegram - show message (but don't redirect to browser)
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 px-4">
-        <div className="text-center max-w-md">
-          <div className="mb-4 text-4xl">📱</div>
-          <p className="text-gray-600 mb-2">Open in Telegram</p>
-          <p className="text-sm text-gray-500">
-            This app works best when opened from Telegram. Please open it from a Telegram bot or link.
-          </p>
-        </div>
-      </div>
-    )
-  }
-
-  const displayName = (() => {
+  const displayName = session?.user ? (() => {
     const name = session.user.name
     const telegramUsername = session.user.telegramUsername
     const email = session.user.email
@@ -188,7 +125,7 @@ export default function TelegramMiniAppPage() {
       return `@${telegramUsername}`
     }
     return name || email || "Member"
-  })()
+  })() : null
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50">
@@ -198,31 +135,64 @@ export default function TelegramMiniAppPage() {
           <div className="flex items-center justify-between">
             <div>
               <h1 className="text-2xl font-bold text-gray-900">MyTgApp</h1>
-              <p className="mt-1 text-sm text-gray-600">Signed in as {displayName}</p>
+              {displayName ? (
+                <p className="mt-1 text-sm text-gray-600">Signed in as {displayName}</p>
+              ) : (
+                <p className="mt-1 text-sm text-gray-500">Browse available groups</p>
+              )}
             </div>
             {/* Role badge removed - all users are equal */}
           </div>
         </div>
       </div>
 
-      <div className="px-4 py-6 space-y-6">
-        {/* Credits Balance */}
-        <div className="rounded-xl border border-gray-200 bg-gradient-to-br from-blue-50 to-indigo-50 p-5 shadow-sm">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600">Credits Balance</p>
-              <p className="mt-2 text-4xl font-bold text-gray-900">
-                {loading ? "..." : credits.toLocaleString()}
+      {/* Authentication Status Banner */}
+      {!session?.user && isInTelegram && (
+        <div className="mx-4 mt-4 rounded-lg border border-blue-300 bg-blue-50 p-4">
+          <div className="flex items-center space-x-3">
+            <div className="text-2xl">⏳</div>
+            <div className="flex-1">
+              <p className="text-sm font-semibold text-blue-900">
+                {status === "loading" ? "Authenticating..." : "Sign in to post"}
+              </p>
+              <p className="text-xs text-blue-800 mt-1">
+                {status === "loading" 
+                  ? "Please wait while we sign you in automatically" 
+                  : "You can browse groups, but need to sign in to schedule posts"}
               </p>
             </div>
-            <button
-              onClick={() => setShowCreditModal(true)}
-              className="rounded-lg bg-gradient-to-r from-blue-600 to-indigo-600 px-5 py-2.5 text-sm font-semibold text-white shadow-md transition-all hover:from-blue-700 hover:to-indigo-700 hover:shadow-lg"
-            >
-              Request Credits
-            </button>
+            {status === "unauthenticated" && (
+              <button
+                onClick={() => window.location.reload()}
+                className="rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700 transition-colors"
+              >
+                Retry
+              </button>
+            )}
           </div>
         </div>
+      )}
+
+      <div className="px-4 py-6 space-y-6">
+        {/* Credits Balance - Only show if authenticated */}
+        {session?.user && (
+          <div className="rounded-xl border border-gray-200 bg-gradient-to-br from-blue-50 to-indigo-50 p-5 shadow-sm">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-600">Credits Balance</p>
+                <p className="mt-2 text-4xl font-bold text-gray-900">
+                  {loading ? "..." : credits.toLocaleString()}
+                </p>
+              </div>
+              <button
+                onClick={() => setShowCreditModal(true)}
+                className="rounded-lg bg-gradient-to-r from-blue-600 to-indigo-600 px-5 py-2.5 text-sm font-semibold text-white shadow-md transition-all hover:from-blue-700 hover:to-indigo-700 hover:shadow-lg"
+              >
+                Request Credits
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Browse Groups Section */}
         <div>
@@ -241,10 +211,16 @@ export default function TelegramMiniAppPage() {
           ) : (
             <div className="space-y-3">
               {groups.slice(0, 5).map((group) => (
-                <Link
+                <div
                   key={group.id}
-                  href={`/app/posts/new?groupId=${group.id}`}
-                  className="block rounded-xl border border-gray-200 bg-white p-4 shadow-sm transition-all hover:border-blue-300 hover:shadow-md"
+                  className={`block rounded-xl border border-gray-200 bg-white p-4 shadow-sm transition-all hover:border-blue-300 hover:shadow-md ${
+                    !session?.user ? 'cursor-not-allowed opacity-75' : 'cursor-pointer'
+                  }`}
+                  onClick={() => {
+                    if (session?.user) {
+                      window.location.href = `/app/posts/new?groupId=${group.id}`
+                    }
+                  }}
                 >
                   <div className="flex items-start justify-between">
                     <div className="flex-1">
@@ -263,16 +239,23 @@ export default function TelegramMiniAppPage() {
                         <p className="text-sm text-gray-600 line-clamp-2 mb-2">{group.description}</p>
                       )}
                       <div className="flex items-center space-x-4 text-xs text-gray-500">
-                        <span>Price: <span className="font-semibold text-blue-600">{group.pricePerPost} credits</span></span>
+                        <span>Price: <span className="font-semibold text-blue-600">{group.pricePerPost === 0 ? 'FREE' : `${group.pricePerPost} credits`}</span></span>
                         {group.isVerified && (
                           <span className="inline-flex items-center text-green-600">
                             ✓ Verified
                           </span>
                         )}
                       </div>
+                      {!session?.user && (
+                        <div className="mt-2 rounded-lg bg-yellow-50 border border-yellow-200 p-2">
+                          <p className="text-xs text-yellow-800">
+                            ⚠️ Sign in to schedule posts in this group
+                          </p>
+                        </div>
+                      )}
                     </div>
                   </div>
-                </Link>
+                </div>
               ))}
               {groups.length > 5 && (
                 <Link
@@ -286,43 +269,45 @@ export default function TelegramMiniAppPage() {
           )}
         </div>
 
-        {/* Quick Actions */}
-        <div>
-          <h2 className="mb-4 text-lg font-bold text-gray-900">Quick Actions</h2>
-          <div className="space-y-3">
-            <Link
-              href="/app/posts"
-              className="flex items-center justify-between rounded-xl border border-gray-200 bg-white p-4 shadow-sm transition-all hover:border-blue-300 hover:shadow-md"
-            >
-              <div className="flex items-center space-x-3">
-                <div className="text-2xl">📝</div>
-                <div>
-                  <div className="font-semibold text-gray-900">My Posts</div>
-                  <div className="text-xs text-gray-500">View and manage your posts</div>
+        {/* Quick Actions - Only show if authenticated */}
+        {session?.user && (
+          <div>
+            <h2 className="mb-4 text-lg font-bold text-gray-900">Quick Actions</h2>
+            <div className="space-y-3">
+              <Link
+                href="/app/posts"
+                className="flex items-center justify-between rounded-xl border border-gray-200 bg-white p-4 shadow-sm transition-all hover:border-blue-300 hover:shadow-md"
+              >
+                <div className="flex items-center space-x-3">
+                  <div className="text-2xl">📝</div>
+                  <div>
+                    <div className="font-semibold text-gray-900">My Posts</div>
+                    <div className="text-xs text-gray-500">View and manage your posts</div>
+                  </div>
                 </div>
-              </div>
-              <svg className="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-              </svg>
-            </Link>
+                <svg className="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                </svg>
+              </Link>
 
-            <Link
-              href="/dashboard"
-              className="flex items-center justify-between rounded-xl border border-indigo-200 bg-indigo-50 p-4 shadow-sm transition-all hover:border-indigo-300 hover:shadow-md"
-            >
-              <div className="flex items-center space-x-3">
-                <div className="text-2xl">📊</div>
-                <div>
-                  <div className="font-semibold text-indigo-900">Manage Groups</div>
-                  <div className="text-xs text-indigo-600">Add groups and post ads (subscription required)</div>
+              <Link
+                href="/dashboard"
+                className="flex items-center justify-between rounded-xl border border-indigo-200 bg-indigo-50 p-4 shadow-sm transition-all hover:border-indigo-300 hover:shadow-md"
+              >
+                <div className="flex items-center space-x-3">
+                  <div className="text-2xl">📊</div>
+                  <div>
+                    <div className="font-semibold text-indigo-900">Manage Groups</div>
+                    <div className="text-xs text-indigo-600">Add groups and post ads (subscription required)</div>
+                  </div>
                 </div>
-              </div>
-              <svg className="h-5 w-5 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-              </svg>
-            </Link>
+                <svg className="h-5 w-5 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                </svg>
+              </Link>
+            </div>
           </div>
-        </div>
+        )}
       </div>
 
       {/* Credit Request Modal */}
