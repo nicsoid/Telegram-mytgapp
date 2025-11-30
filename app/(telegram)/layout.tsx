@@ -174,7 +174,7 @@ export default function TelegramLayout({ children }: { children: React.ReactNode
     if (!tg) return
 
     // If status changed to unauthenticated and we haven't tried recently, retry
-    if (status === "unauthenticated" && !session?.user) {
+    if (status === "unauthenticated" && (!session || !(session as any).user)) {
       const lastAttempt = (window as any).lastAuthAttempt || 0
       const timeSinceLastAttempt = Date.now() - lastAttempt
       
