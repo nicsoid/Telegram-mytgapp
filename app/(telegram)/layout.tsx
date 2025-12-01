@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useState, useRef } from "react"
 import { useSession } from "next-auth/react"
 import { signIn } from "next-auth/react"
 import Script from "next/script"
@@ -10,6 +10,14 @@ export default function TelegramLayout({ children }: { children: React.ReactNode
   const [isTelegramWebApp, setIsTelegramWebApp] = useState(false)
   const [autoSignInAttempted, setAutoSignInAttempted] = useState(false)
   const [isAuthenticating, setIsAuthenticating] = useState(true) // Show overlay during initial auth
+  const statusRef = useRef(status)
+  const sessionRef = useRef(session)
+  
+  // Keep refs in sync
+  useEffect(() => {
+    statusRef.current = status
+    sessionRef.current = session
+  }, [status, session])
 
   // Prevent navigation during authentication
   useEffect(() => {
@@ -195,109 +203,142 @@ export default function TelegramLayout({ children }: { children: React.ReactNode
     }
   }, []) // Empty deps - run once on mount
 
-  // Retry authentication when status is unauthenticated (but only if we're in Telegram)
-  // This also handles the case where user signs out - we auto-sign them back in
+  // Continuous authentication check - handles sign-out and retries
+  // This effect runs whenever status or session changes
   useEffect(() => {
     if (typeof window === "undefined") return
     
     const tg = (window as any).Telegram?.WebApp
-    if (!tg) return // Not in Telegram WebApp
+    if (!tg) {
+      // Not in Telegram WebApp - hide overlay
+      setIsAuthenticating(false)
+      return
+    }
 
-    // If unauthenticated in Telegram, always try to authenticate
-    // This ensures users stay signed in even if they somehow sign out
-    if (status === "unauthenticated" || !session?.user) {
-      // Reset authenticating state and clear any previous attempt timestamps
-      setIsAuthenticating(true)
-      // Clear lastAuthAttempt to allow immediate retry after sign-out
-      delete (window as any).lastAuthAttempt
+    // Helper function to get initData
+    const getInitData = (): string | null => {
+      let initData = tg.initData
       
-      console.log('[TelegramLayout] 🔄 Auto-authenticating (status:', status, ', session:', !!session, ')')
-      
-      // Function to attempt authentication
-      const attemptAuth = () => {
-        const lastAttempt = (window as any).lastAuthAttempt || 0
-        const timeSinceLastAttempt = Date.now() - lastAttempt
-        
-        // Retry immediately if no recent attempt, or after 300ms
-        if (timeSinceLastAttempt > 300) {
-          let initData = tg.initData
-          if (!initData && tg.initDataUnsafe) {
-            try {
-              const params = new URLSearchParams()
-              if (tg.initDataUnsafe.user) params.set('user', JSON.stringify(tg.initDataUnsafe.user))
-              if (tg.initDataUnsafe.auth_date) params.set('auth_date', tg.initDataUnsafe.auth_date.toString())
-              if (tg.initDataUnsafe.hash) params.set('hash', tg.initDataUnsafe.hash)
-              if (tg.initDataUnsafe.query_id) params.set('query_id', tg.initDataUnsafe.query_id)
-              if (tg.initDataUnsafe.start_param) params.set('start_param', tg.initDataUnsafe.start_param)
-              initData = params.toString()
-            } catch (e) {
-              console.error('[TelegramLayout] Error converting initDataUnsafe:', e)
-            }
-          }
-          
-          if (initData && initData.length > 0) {
-            ;(window as any).lastAuthAttempt = Date.now()
-            console.log('[TelegramLayout] 🔐 Attempting sign-in with initData...')
-            signIn("credentials", {
-              initData,
-              redirect: false,
-            })
-              .then((result) => {
-                if (result?.ok) {
-                  console.log('[TelegramLayout] ✅ Auto-auth successful!')
-                  setIsAuthenticating(false) // Hide overlay
-                  // Force session refresh immediately (no page reload needed)
-                  const refreshSession = () => {
-                    update().then(() => {
-                      console.log('[TelegramLayout] ✅ Session updated')
-                    }).catch((err) => {
-                      console.error('[TelegramLayout] ❌ Session update error:', err)
-                    })
-                  }
-                  // Immediate refresh
-                  refreshSession()
-                  // Also refresh after short delays to ensure it sticks
-                  setTimeout(refreshSession, 200)
-                  setTimeout(refreshSession, 500)
-                } else if (result?.error) {
-                  console.error('[TelegramLayout] ❌ Auto-auth failed:', result.error)
-                  // Clear attempt timestamp and retry after a short delay
-                  setTimeout(() => {
-                    delete (window as any).lastAuthAttempt
-                  }, 500)
-                }
-              })
-              .catch((error) => {
-                console.error('[TelegramLayout] ❌ Auto-auth error:', error)
-                // Clear attempt timestamp and retry after a short delay
-                setTimeout(() => {
-                  delete (window as any).lastAuthAttempt
-                }, 500)
-              })
-          } else {
-            console.warn('[TelegramLayout] ⚠️ No initData available, will retry...')
-            // Clear attempt timestamp to allow retry
-            delete (window as any).lastAuthAttempt
-          }
+      if (!initData && tg.initDataUnsafe) {
+        try {
+          const params = new URLSearchParams()
+          if (tg.initDataUnsafe.user) params.set('user', JSON.stringify(tg.initDataUnsafe.user))
+          if (tg.initDataUnsafe.auth_date) params.set('auth_date', tg.initDataUnsafe.auth_date.toString())
+          if (tg.initDataUnsafe.hash) params.set('hash', tg.initDataUnsafe.hash)
+          if (tg.initDataUnsafe.query_id) params.set('query_id', tg.initDataUnsafe.query_id)
+          if (tg.initDataUnsafe.start_param) params.set('start_param', tg.initDataUnsafe.start_param)
+          initData = params.toString()
+        } catch (e) {
+          console.error('[TelegramLayout] Error converting initDataUnsafe:', e)
         }
       }
       
-      // Start attempting immediately
+      if (!initData) {
+        const urlParams = new URLSearchParams(window.location.search)
+        initData = urlParams.get('tgWebAppData') || urlParams.get('_auth') || urlParams.get('initData')
+      }
+      
+      return initData
+    }
+
+    // If authenticated, hide overlay and stop
+    if (status === "authenticated" && session?.user) {
+      setIsAuthenticating(false)
+      return
+    }
+
+    // If unauthenticated OR loading (after sign-out), try to authenticate
+    // Loading status can occur briefly after sign-out before becoming unauthenticated
+    if (status === "unauthenticated" || status === "loading" || !session?.user) {
+      // Only show overlay if truly unauthenticated (not just loading)
+      if (status === "unauthenticated" || !session?.user) {
+        setIsAuthenticating(true)
+      }
+      console.log('[TelegramLayout] 🔄 Status:', status, ', Session:', !!session, ', Attempting auto-auth...')
+      
+      // Clear any previous attempt timestamps to allow immediate retry
+      delete (window as any).lastAuthAttempt
+      
+      const attemptAuth = () => {
+        // Check if we're still unauthenticated (might have changed) - use refs for current values
+        if (statusRef.current === "authenticated" && sessionRef.current?.user) {
+          setIsAuthenticating(false)
+          return
+        }
+        
+        const lastAttempt = (window as any).lastAuthAttempt || 0
+        const timeSinceLastAttempt = Date.now() - lastAttempt
+        
+        // Only attempt if enough time has passed
+        if (timeSinceLastAttempt < 300) {
+          return
+        }
+        
+        const initData = getInitData()
+        
+        if (!initData || initData.length === 0) {
+          console.warn('[TelegramLayout] ⚠️ No initData available')
+          // Clear timestamp to allow retry
+          delete (window as any).lastAuthAttempt
+          return
+        }
+        
+        console.log('[TelegramLayout] 🔐 Attempting sign-in with initData (length:', initData.length, ')')
+        ;(window as any).lastAuthAttempt = Date.now()
+        
+        signIn("credentials", {
+          initData,
+          redirect: false,
+        })
+          .then((result) => {
+            if (result?.ok) {
+              console.log('[TelegramLayout] ✅ Auto-auth successful!')
+              setIsAuthenticating(false)
+              // Force session refresh
+              const refreshSession = () => {
+                update().then(() => {
+                  console.log('[TelegramLayout] ✅ Session updated')
+                }).catch((err) => {
+                  console.error('[TelegramLayout] ❌ Session update error:', err)
+                })
+              }
+              refreshSession()
+              setTimeout(refreshSession, 200)
+              setTimeout(refreshSession, 500)
+            } else if (result?.error) {
+              console.error('[TelegramLayout] ❌ Auto-auth failed:', result.error)
+              // Clear timestamp to allow retry
+              setTimeout(() => {
+                delete (window as any).lastAuthAttempt
+              }, 500)
+            }
+          })
+          .catch((error) => {
+            console.error('[TelegramLayout] ❌ Auto-auth error:', error)
+            // Clear timestamp to allow retry
+            setTimeout(() => {
+              delete (window as any).lastAuthAttempt
+            }, 500)
+          })
+      }
+      
+      // Attempt immediately
       attemptAuth()
       
-      // Also set up interval retries as backup (every 1.5 seconds)
+      // Set up interval to keep retrying
       const intervalId = setInterval(() => {
-        // Re-check status and session from the current state
-        // This ensures we stop if authenticated
+        // Re-check current status using refs (not from closure)
+        if (statusRef.current === "authenticated" && sessionRef.current?.user) {
+          clearInterval(intervalId)
+          setIsAuthenticating(false)
+          return
+        }
         attemptAuth()
-      }, 1500)
+      }, 1000) // Retry every second
       
       return () => {
         clearInterval(intervalId)
       }
-    } else if (status === "authenticated" && session?.user) {
-      // Authenticated - hide overlay
-      setIsAuthenticating(false)
     }
   }, [status, session, update])
 
