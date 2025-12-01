@@ -317,6 +317,8 @@ export default function AppLayout({ children }: AppLayoutProps) {
                     if (typeof window !== "undefined") {
                       localStorage.removeItem("telegram_widget_data")
                       localStorage.removeItem("telegram_auth_data")
+                      // Clear lastAuthAttempt to allow immediate re-auth in mini app
+                      delete (window as any).lastAuthAttempt
                     }
                     await signOut({ callbackUrl: "/", redirect: true })
                   }}
