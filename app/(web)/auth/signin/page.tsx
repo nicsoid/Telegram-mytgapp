@@ -13,15 +13,21 @@ function SignInForm() {
   const [error, setError] = useState<string | null>(null)
   const [isWebApp, setIsWebApp] = useState(false)
 
-  // Check if we're in Telegram WebApp
   useEffect(() => {
+    // Check if we're in Telegram WebApp
     if (typeof window !== "undefined" && (window as any).Telegram?.WebApp) {
       const tg = (window as any).Telegram.WebApp
       tg.ready()
-      const data = tg.initData || tg.initDataUnsafe
+      const data = tg.initData
+      
+      // Only treat as WebApp if we actually have initData (meaning we are inside Telegram)
       if (data) {
         setInitData(data)
         setIsWebApp(true)
+        // Auto-login if we have initData and aren't already processing
+        if (!loading && !searchParams.get("error")) {
+           handleTelegramSignIn(data)
+        }
       }
     }
 
@@ -43,14 +49,15 @@ function SignInForm() {
       }
     }
 
-    // Check for widget callback with token
+    // Check for widget callback with token (Only for Web Widget flow, not Mini App)
     const widgetToken = searchParams.get("widget_token")
-    if (widgetToken) {
+    if (widgetToken && !isWebApp) {
       handleWidgetSignIn(widgetToken)
     }
-  }, [searchParams])
+  }, [searchParams, isWebApp]) // Added isWebApp dependency to prevent widget flow in Mini App
 
   const handleWidgetSignIn = async (token: string) => {
+    if (loading) return
     setLoading(true)
     setError(null)
 
@@ -73,8 +80,6 @@ function SignInForm() {
       const user = data.user
 
       // Create a session by signing in with NextAuth
-      // We need to create a valid initData format for NextAuth
-      // Since we already verified the user via widget, we'll create a special format
       const widgetInitData = `user=${encodeURIComponent(JSON.stringify({
         id: user.telegramId,
         first_name: user.name?.split(' ')[0] || '',
@@ -84,7 +89,7 @@ function SignInForm() {
         auth_date: Math.floor(Date.now() / 1000),
       }))}&hash=widget_verified`
 
-      const result = await signIn("credentials", {
+      const result = await signIn("Telegram", {
         initData: widgetInitData,
         redirect: false,
       })
@@ -92,25 +97,11 @@ function SignInForm() {
       if (result?.error) {
         setError("Failed to create session. Please try again.")
       } else if (result?.ok) {
-        // Get callbackUrl and sanitize it to prevent redirect loops
-        let callbackUrl = searchParams.get("callbackUrl") || "/"
-        
-        // Prevent redirect loops - if callbackUrl is the signin page or contains widget_token, use "/"
-        try {
-          const callbackUrlObj = new URL(callbackUrl, window.location.origin)
-          if (callbackUrlObj.pathname.includes('/auth/signin') || callbackUrlObj.searchParams.has('widget_token')) {
-            callbackUrl = "/"
-          }
-        } catch {
-          // If URL parsing fails, check if it contains signin
-          if (callbackUrl.includes('/auth/signin') || callbackUrl.includes('widget_token')) {
-            callbackUrl = "/"
-          }
-        }
-        
-        // Use hard redirect to ensure session cookie is read and session is fully established
-        // This prevents the "Please sign in" loop after widget authentication
-        window.location.href = callbackUrl
+        const callbackUrl = searchParams.get("callbackUrl") || "/"
+        // Prevent redirect loop if callback is signin page
+        const targetUrl = callbackUrl.includes("/auth/signin") ? "/" : callbackUrl
+        router.push(targetUrl)
+        router.refresh()
       }
     } catch (err) {
       console.error("Widget sign-in error:", err)
@@ -120,8 +111,9 @@ function SignInForm() {
     }
   }
 
-  const handleTelegramSignIn = async () => {
-    if (!initData) {
+  const handleTelegramSignIn = async (dataToUse?: string) => {
+    const data = dataToUse || initData
+    if (!data) {
       setError("Telegram authentication not available. Please open this page in Telegram.")
       return
     }
@@ -130,20 +122,26 @@ function SignInForm() {
     setError(null)
 
     try {
-      const result = await signIn("credentials", {
-        initData,
+      const result = await signIn("Telegram", {
+        initData: data,
         redirect: false,
       })
 
       if (result?.error) {
+        console.error("Sign in error:", result.error)
         setError("Authentication failed. Please try again.")
       } else if (result?.ok) {
-        const callbackUrl = searchParams.get("callbackUrl") || "/"
-        // Use hard redirect to ensure session cookie is read and session is fully established
-        // This prevents the "Please sign in" loop after widget authentication
-        window.location.href = callbackUrl
+        // Determine redirect URL
+        let callbackUrl = searchParams.get("callbackUrl") || "/"
+        // Critical: If callback is signin page (loop), force to dashboard/app
+        if (callbackUrl.includes("/auth/signin")) {
+           callbackUrl = "/app"
+        }
+        router.push(callbackUrl)
+        router.refresh()
       }
     } catch (err) {
+      console.error("Sign in exception:", err)
       setError("An error occurred. Please try again.")
     } finally {
       setLoading(false)
@@ -153,17 +151,12 @@ function SignInForm() {
   const botUsername = process.env.NEXT_PUBLIC_TELEGRAM_BOT_USERNAME || ""
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-blue-50 via-white to-indigo-100 px-4">
-      <div className="w-full max-w-md space-y-8 rounded-2xl border border-gray-200 bg-white p-8 shadow-xl">
+    <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 px-4">
+      <div className="w-full max-w-md space-y-8 rounded-2xl bg-white p-8 shadow-xl">
         <div className="text-center">
-          <div className="mb-4 flex justify-center">
-            <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-600 to-indigo-600 text-white text-2xl font-bold shadow-lg">
-              M
-            </div>
-          </div>
           <h1 className="text-3xl font-bold text-gray-900">MyTgApp</h1>
           <p className="mt-2 text-sm text-gray-600">
-            Sign in to manage your Telegram groups and post ads
+            {isWebApp ? "Authenticating with Telegram..." : "Sign in to manage your Telegram groups"}
           </p>
         </div>
 
@@ -174,18 +167,24 @@ function SignInForm() {
         )}
 
         <div className="space-y-4">
-          {/* Telegram WebApp Sign In (for Mini App) */}
-          {isWebApp && initData && (
+          {/* Loading State for Mini App Auto-Login */}
+          {isWebApp && loading && (
+             <div className="flex justify-center py-4">
+               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+             </div>
+          )}
+
+          {/* Manual Button fallback for Mini App */}
+          {isWebApp && !loading && (
             <button
-              onClick={handleTelegramSignIn}
-              disabled={loading}
-              className="w-full rounded-lg bg-blue-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+              onClick={() => handleTelegramSignIn()}
+              className="w-full rounded-lg bg-blue-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-blue-700"
             >
-              {loading ? "Signing in..." : "Sign in with Telegram"}
+              Sign in with Telegram
             </button>
           )}
 
-          {/* Telegram Login Widget (for Browser) */}
+          {/* Web Login Widget (Hidden if in Mini App) */}
           {!isWebApp && botUsername && (
             <div className="space-y-3">
               <div className="text-center">
@@ -218,48 +217,8 @@ function SignInForm() {
               <p className="text-sm text-gray-500 mb-4">
                 Telegram bot username not configured. Please set NEXT_PUBLIC_TELEGRAM_BOT_USERNAME in your .env file.
               </p>
-              <p className="text-xs text-gray-400">
-                Open this page in Telegram to sign in
-              </p>
             </div>
           )}
-        </div>
-
-        {/* Information Section */}
-        <div className="rounded-lg border border-blue-200 bg-blue-50 p-4 space-y-3">
-          <h3 className="text-sm font-semibold text-blue-900">What you can do:</h3>
-          <ul className="text-xs text-blue-800 space-y-2">
-            <li className="flex items-start">
-              <svg className="h-4 w-4 text-blue-600 mr-2 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-              </svg>
-              <span><strong>Add your Telegram groups</strong> - Connect and verify your groups to start managing them</span>
-            </li>
-            <li className="flex items-start">
-              <svg className="h-4 w-4 text-blue-600 mr-2 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-              </svg>
-              <span><strong>Let users post ads</strong> - Grant credits to users so they can post advertisements in your groups</span>
-            </li>
-            <li className="flex items-start">
-              <svg className="h-4 w-4 text-blue-600 mr-2 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-              </svg>
-              <span><strong>Subscribe to schedule posts</strong> - With an active subscription, you can schedule unlimited posts to your groups</span>
-            </li>
-            <li className="flex items-start">
-              <svg className="h-4 w-4 text-blue-600 mr-2 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-              </svg>
-              <span><strong>Earn from paid ads</strong> - Set prices for posting to your groups and earn revenue</span>
-            </li>
-          </ul>
-        </div>
-
-        <div className="pt-2 text-center text-xs text-gray-500">
-          <p>
-            New users get 3 free scheduled posts. Subscribe to unlock unlimited scheduling.
-          </p>
         </div>
       </div>
     </div>
