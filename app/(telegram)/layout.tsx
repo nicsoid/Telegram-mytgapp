@@ -203,8 +203,8 @@ export default function TelegramLayout({ children }: { children: React.ReactNode
     }
   }, []) // Empty deps - run once on mount
 
-  // Continuous authentication check - handles sign-out and retries
-  // This effect runs whenever status or session changes
+  // Continuous authentication polling - always checks and attempts auth if needed
+  // This doesn't rely on status changes, it polls continuously
   useEffect(() => {
     if (typeof window === "undefined") return
     
@@ -241,49 +241,43 @@ export default function TelegramLayout({ children }: { children: React.ReactNode
       return initData
     }
 
-    // If authenticated, hide overlay and stop
-    if (status === "authenticated" && session?.user) {
-      setIsAuthenticating(false)
-      return
-    }
-
-    // If unauthenticated OR loading (after sign-out), try to authenticate
-    // Loading status can occur briefly after sign-out before becoming unauthenticated
-    if (status === "unauthenticated" || status === "loading" || !session?.user) {
-      // Only show overlay if truly unauthenticated (not just loading)
-      if (status === "unauthenticated" || !session?.user) {
-        setIsAuthenticating(true)
+    // Continuous polling function
+    const pollAuth = () => {
+      // Always check current status using refs
+      const currentStatus = statusRef.current
+      const currentSession = sessionRef.current
+      
+      // If authenticated, hide overlay and stop
+      if (currentStatus === "authenticated" && currentSession?.user) {
+        setIsAuthenticating(false)
+        return
       }
-      console.log('[TelegramLayout] 🔄 Status:', status, ', Session:', !!session, ', Attempting auto-auth...')
-      
-      // Clear any previous attempt timestamps to allow immediate retry
-      delete (window as any).lastAuthAttempt
-      
-      const attemptAuth = () => {
-        // Check if we're still unauthenticated (might have changed) - use refs for current values
-        if (statusRef.current === "authenticated" && sessionRef.current?.user) {
-          setIsAuthenticating(false)
-          return
+
+      // If unauthenticated or loading, try to authenticate
+      if (currentStatus === "unauthenticated" || currentStatus === "loading" || !currentSession?.user) {
+        // Show overlay if unauthenticated
+        if (currentStatus === "unauthenticated" || !currentSession?.user) {
+          setIsAuthenticating(true)
         }
         
         const lastAttempt = (window as any).lastAuthAttempt || 0
         const timeSinceLastAttempt = Date.now() - lastAttempt
         
-        // Only attempt if enough time has passed
-        if (timeSinceLastAttempt < 300) {
+        // Only attempt if enough time has passed (500ms)
+        if (timeSinceLastAttempt < 500) {
           return
         }
         
         const initData = getInitData()
         
         if (!initData || initData.length === 0) {
-          console.warn('[TelegramLayout] ⚠️ No initData available')
+          console.warn('[TelegramLayout] ⚠️ No initData available (status:', currentStatus, ')')
           // Clear timestamp to allow retry
           delete (window as any).lastAuthAttempt
           return
         }
         
-        console.log('[TelegramLayout] 🔐 Attempting sign-in with initData (length:', initData.length, ')')
+        console.log('[TelegramLayout] 🔐 Attempting sign-in (status:', currentStatus, ', initData length:', initData.length, ')')
         ;(window as any).lastAuthAttempt = Date.now()
         
         signIn("credentials", {
@@ -291,10 +285,11 @@ export default function TelegramLayout({ children }: { children: React.ReactNode
           redirect: false,
         })
           .then((result) => {
+            console.log('[TelegramLayout] Sign-in result:', result)
             if (result?.ok) {
               console.log('[TelegramLayout] ✅ Auto-auth successful!')
               setIsAuthenticating(false)
-              // Force session refresh
+              // Force session refresh multiple times
               const refreshSession = () => {
                 update().then(() => {
                   console.log('[TelegramLayout] ✅ Session updated')
@@ -305,9 +300,15 @@ export default function TelegramLayout({ children }: { children: React.ReactNode
               refreshSession()
               setTimeout(refreshSession, 200)
               setTimeout(refreshSession, 500)
+              setTimeout(refreshSession, 1000)
             } else if (result?.error) {
-              console.error('[TelegramLayout] ❌ Auto-auth failed:', result.error)
+              console.error('[TelegramLayout] ❌ Auto-auth failed:', result.error, result)
               // Clear timestamp to allow retry
+              setTimeout(() => {
+                delete (window as any).lastAuthAttempt
+              }, 500)
+            } else {
+              console.warn('[TelegramLayout] ⚠️ Unexpected result:', result)
               setTimeout(() => {
                 delete (window as any).lastAuthAttempt
               }, 500)
@@ -321,26 +322,18 @@ export default function TelegramLayout({ children }: { children: React.ReactNode
             }, 500)
           })
       }
-      
-      // Attempt immediately
-      attemptAuth()
-      
-      // Set up interval to keep retrying
-      const intervalId = setInterval(() => {
-        // Re-check current status using refs (not from closure)
-        if (statusRef.current === "authenticated" && sessionRef.current?.user) {
-          clearInterval(intervalId)
-          setIsAuthenticating(false)
-          return
-        }
-        attemptAuth()
-      }, 1000) // Retry every second
-      
-      return () => {
-        clearInterval(intervalId)
-      }
     }
-  }, [status, session, update])
+    
+    // Poll immediately
+    pollAuth()
+    
+    // Set up continuous polling every 800ms
+    const intervalId = setInterval(pollAuth, 800)
+    
+    return () => {
+      clearInterval(intervalId)
+    }
+  }, [status, session, update]) // Keep dependencies to ensure refs are updated
 
   return (
     <>
@@ -380,7 +373,7 @@ export default function TelegramLayout({ children }: { children: React.ReactNode
             <p className="mb-4 text-gray-600">
               Please wait while we automatically sign you in with your Telegram account.
             </p>
-            <p className="text-sm text-gray-500">
+            <p className="text-sm text-gray-500 mb-4">
               This should only take a few seconds. Do not navigate away.
             </p>
             <div className="mt-6">
@@ -388,6 +381,48 @@ export default function TelegramLayout({ children }: { children: React.ReactNode
                 <div className="h-full w-full animate-pulse bg-blue-600"></div>
               </div>
             </div>
+            {/* Manual retry button after 5 seconds */}
+            <button
+              onClick={async () => {
+                console.log('[TelegramLayout] Manual retry triggered')
+                const tg = (window as any).Telegram?.WebApp
+                if (!tg) return
+                
+                // Clear any attempt timestamps
+                delete (window as any).lastAuthAttempt
+                
+                // Get initData
+                let initData = tg.initData
+                if (!initData && tg.initDataUnsafe) {
+                  try {
+                    const params = new URLSearchParams()
+                    if (tg.initDataUnsafe.user) params.set('user', JSON.stringify(tg.initDataUnsafe.user))
+                    if (tg.initDataUnsafe.auth_date) params.set('auth_date', tg.initDataUnsafe.auth_date.toString())
+                    if (tg.initDataUnsafe.hash) params.set('hash', tg.initDataUnsafe.hash)
+                    if (tg.initDataUnsafe.query_id) params.set('query_id', tg.initDataUnsafe.query_id)
+                    if (tg.initDataUnsafe.start_param) params.set('start_param', tg.initDataUnsafe.start_param)
+                    initData = params.toString()
+                  } catch (e) {
+                    console.error('[TelegramLayout] Error:', e)
+                  }
+                }
+                
+                if (initData) {
+                  console.log('[TelegramLayout] Manual sign-in attempt with initData length:', initData.length)
+                  const result = await signIn("credentials", { initData, redirect: false })
+                  console.log('[TelegramLayout] Manual sign-in result:', result)
+                  if (result?.ok) {
+                    await update()
+                  }
+                } else {
+                  console.error('[TelegramLayout] No initData available for manual retry')
+                  alert('Unable to sign in: No Telegram data available. Please reopen the mini app.')
+                }
+              }}
+              className="mt-4 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 transition-colors"
+            >
+              Retry Sign In
+            </button>
           </div>
         </div>
       )}
