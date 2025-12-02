@@ -15,8 +15,16 @@ function SignInForm() {
 
   // Check if we're in Telegram WebApp and auto-sign in
   useEffect(() => {
-    if (typeof window !== "undefined" && (window as any).Telegram?.WebApp) {
-      const tg = (window as any).Telegram.WebApp
+    const checkAndSignIn = () => {
+      if (typeof window === "undefined") return
+      
+      const tg = (window as any).Telegram?.WebApp
+      if (!tg) {
+        // Check again after delay
+        setTimeout(checkAndSignIn, 500)
+        return
+      }
+      
       tg.ready()
       tg.expand()
       
@@ -36,15 +44,26 @@ function SignInForm() {
         }
       }
       
-      if (data) {
+      if (data && data.length > 0) {
         setInitData(data)
         setIsWebApp(true)
         
         // Auto-sign in immediately when Telegram WebApp is detected
         console.log('[SignIn] Telegram WebApp detected, auto-signing in...')
         handleTelegramSignInAuto(data)
+      } else {
+        // No initData yet, try again
+        setTimeout(checkAndSignIn, 1000)
       }
     }
+    
+    // Start checking immediately
+    checkAndSignIn()
+    
+    // Also check after delays
+    setTimeout(checkAndSignIn, 500)
+    setTimeout(checkAndSignIn, 1000)
+    setTimeout(checkAndSignIn, 2000)
 
     // Check for widget callback errors
     const errorParam = searchParams.get("error")
@@ -248,13 +267,75 @@ function SignInForm() {
         <div className="space-y-4">
           {/* Telegram WebApp Sign In (for Mini App) */}
           {isWebApp && initData && (
-            <button
-              onClick={handleTelegramSignIn}
-              disabled={loading}
-              className="w-full rounded-lg bg-blue-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              {loading ? "Signing in..." : "Sign in with Telegram"}
-            </button>
+            <>
+              <div className="rounded-lg bg-blue-50 border border-blue-200 p-3 mb-4">
+                <p className="text-sm text-blue-900">
+                  ✅ Telegram Mini App detected! Signing you in automatically...
+                </p>
+              </div>
+              <button
+                onClick={handleTelegramSignIn}
+                disabled={loading}
+                className="w-full rounded-lg bg-blue-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {loading ? "Signing in..." : "Sign In Now (Manual)"}
+              </button>
+            </>
+          )}
+          
+          {/* Show manual sign-in button if in Telegram but auto-sign-in hasn't worked */}
+          {typeof window !== "undefined" && (window as any).Telegram?.WebApp && !isWebApp && (
+            <div className="rounded-lg bg-yellow-50 border border-yellow-200 p-4">
+              <p className="text-sm text-yellow-900 mb-3">
+                ⚠️ Telegram Mini App detected but authentication data not available yet.
+              </p>
+              <button
+                onClick={async () => {
+                  const tg = (window as any).Telegram?.WebApp
+                  if (!tg) {
+                    alert('Not in Telegram mini app')
+                    return
+                  }
+                  
+                  tg.ready()
+                  
+                  // Clear cookies
+                  document.cookie.split(";").forEach((c) => {
+                    const cookieName = c.trim().split("=")[0]
+                    if (cookieName.includes("next-auth") || cookieName.includes("authjs")) {
+                      document.cookie = `${cookieName}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;`
+                    }
+                  })
+                  
+                  // Wait a bit for initData
+                  await new Promise(resolve => setTimeout(resolve, 500))
+                  
+                  let data = tg.initData
+                  if (!data && tg.initDataUnsafe) {
+                    try {
+                      const params = new URLSearchParams()
+                      if (tg.initDataUnsafe.user) params.set('user', JSON.stringify(tg.initDataUnsafe.user))
+                      if (tg.initDataUnsafe.auth_date) params.set('auth_date', tg.initDataUnsafe.auth_date.toString())
+                      if (tg.initDataUnsafe.hash) params.set('hash', tg.initDataUnsafe.hash)
+                      data = params.toString()
+                    } catch (e) {
+                      // Error
+                    }
+                  }
+                  
+                  if (data) {
+                    setInitData(data)
+                    setIsWebApp(true)
+                    handleTelegramSignInAuto(data)
+                  } else {
+                    alert('Unable to get Telegram authentication data. Please reopen the mini app from Telegram.')
+                  }
+                }}
+                className="w-full rounded-lg bg-yellow-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-yellow-700"
+              >
+                Try Sign In Again
+              </button>
+            </div>
           )}
 
           {/* Telegram Login Widget (for Browser) */}

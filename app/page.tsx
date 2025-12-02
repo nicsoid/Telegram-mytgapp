@@ -58,10 +58,14 @@ export default function HomePage() {
         return true
       }
       
-      // If script loaded but no Telegram data, we're not in Telegram
-      if (tg && !hasInitData && !isTelegramPlatform && !hasVersion) {
-        console.log('[HomePage] ❌ Telegram script loaded but no Telegram data - not in mini app')
-        return false
+      // If we have Telegram.WebApp but no clear indicators, still consider it Telegram
+      // (initData might load later, or we might be in Telegram but data isn't available yet)
+      if (tg) {
+        console.log('[HomePage] ⚠️ Telegram.WebApp exists but no clear indicators yet - assuming Telegram')
+        tg.ready()
+        tg.expand()
+        setIsTelegram(true)
+        return true
       }
       
       return false
