@@ -280,12 +280,26 @@ export default function TelegramLayout({ children }: { children: React.ReactNode
         console.log('[TelegramLayout] 🔐 Attempting sign-in (status:', currentStatus, ', initData length:', initData.length, ')')
         ;(window as any).lastAuthAttempt = Date.now()
         
+        // Clear any NextAuth cookies that might be blocking sign-in
+        // This helps after sign-out
+        if (typeof document !== "undefined") {
+          // Clear NextAuth session cookie
+          document.cookie.split(";").forEach((c) => {
+            const cookieName = c.trim().split("=")[0]
+            if (cookieName.includes("next-auth") || cookieName.includes("authjs")) {
+              document.cookie = `${cookieName}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;`
+              document.cookie = `${cookieName}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/; domain=${window.location.hostname};`
+            }
+          })
+        }
+        
+        console.log('[TelegramLayout] 🔐 Calling signIn with initData length:', initData.length)
         signIn("credentials", {
           initData,
           redirect: false,
         })
           .then((result) => {
-            console.log('[TelegramLayout] Sign-in result:', result)
+            console.log('[TelegramLayout] Sign-in result:', JSON.stringify(result))
             if (result?.ok) {
               console.log('[TelegramLayout] ✅ Auto-auth successful!')
               setIsAuthenticating(false)
@@ -301,25 +315,26 @@ export default function TelegramLayout({ children }: { children: React.ReactNode
               setTimeout(refreshSession, 200)
               setTimeout(refreshSession, 500)
               setTimeout(refreshSession, 1000)
+              setTimeout(refreshSession, 2000)
             } else if (result?.error) {
-              console.error('[TelegramLayout] ❌ Auto-auth failed:', result.error, result)
+              console.error('[TelegramLayout] ❌ Auto-auth failed:', result.error, 'Full result:', JSON.stringify(result))
               // Clear timestamp to allow retry
               setTimeout(() => {
                 delete (window as any).lastAuthAttempt
-              }, 500)
+              }, 1000)
             } else {
-              console.warn('[TelegramLayout] ⚠️ Unexpected result:', result)
+              console.warn('[TelegramLayout] ⚠️ Unexpected result:', JSON.stringify(result))
               setTimeout(() => {
                 delete (window as any).lastAuthAttempt
-              }, 500)
+              }, 1000)
             }
           })
           .catch((error) => {
-            console.error('[TelegramLayout] ❌ Auto-auth error:', error)
+            console.error('[TelegramLayout] ❌ Auto-auth error:', error, error.stack)
             // Clear timestamp to allow retry
             setTimeout(() => {
               delete (window as any).lastAuthAttempt
-            }, 500)
+            }, 1000)
           })
       }
     }
@@ -381,15 +396,29 @@ export default function TelegramLayout({ children }: { children: React.ReactNode
                 <div className="h-full w-full animate-pulse bg-blue-600"></div>
               </div>
             </div>
-            {/* Manual retry button after 5 seconds */}
+            {/* Manual retry button - always visible */}
             <button
               onClick={async () => {
                 console.log('[TelegramLayout] Manual retry triggered')
                 const tg = (window as any).Telegram?.WebApp
-                if (!tg) return
+                if (!tg) {
+                  alert('Not in Telegram mini app. Please open this in Telegram.')
+                  return
+                }
                 
                 // Clear any attempt timestamps
                 delete (window as any).lastAuthAttempt
+                
+                // Clear NextAuth cookies
+                if (typeof document !== "undefined") {
+                  document.cookie.split(";").forEach((c) => {
+                    const cookieName = c.trim().split("=")[0]
+                    if (cookieName.includes("next-auth") || cookieName.includes("authjs")) {
+                      document.cookie = `${cookieName}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;`
+                      document.cookie = `${cookieName}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/; domain=${window.location.hostname};`
+                    }
+                  })
+                }
                 
                 // Get initData
                 let initData = tg.initData
@@ -409,14 +438,24 @@ export default function TelegramLayout({ children }: { children: React.ReactNode
                 
                 if (initData) {
                   console.log('[TelegramLayout] Manual sign-in attempt with initData length:', initData.length)
-                  const result = await signIn("credentials", { initData, redirect: false })
-                  console.log('[TelegramLayout] Manual sign-in result:', result)
-                  if (result?.ok) {
-                    await update()
+                  try {
+                    const result = await signIn("credentials", { initData, redirect: false })
+                    console.log('[TelegramLayout] Manual sign-in result:', JSON.stringify(result))
+                    if (result?.ok) {
+                      await update()
+                      window.location.reload() // Force reload to ensure session is picked up
+                    } else {
+                      alert(`Sign-in failed: ${result?.error || 'Unknown error'}. Check console for details.`)
+                    }
+                  } catch (error: any) {
+                    console.error('[TelegramLayout] Manual sign-in error:', error)
+                    alert(`Sign-in error: ${error.message || 'Unknown error'}. Check console for details.`)
                   }
                 } else {
                   console.error('[TelegramLayout] No initData available for manual retry')
-                  alert('Unable to sign in: No Telegram data available. Please reopen the mini app.')
+                  console.log('[TelegramLayout] tg.initData:', tg.initData ? 'present' : 'missing')
+                  console.log('[TelegramLayout] tg.initDataUnsafe:', tg.initDataUnsafe ? 'present' : 'missing')
+                  alert('Unable to sign in: No Telegram data available. Please reopen the mini app from Telegram.')
                 }
               }}
               className="mt-4 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 transition-colors"

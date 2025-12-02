@@ -14,10 +14,17 @@ const authConfig = {
         initData: { label: "Telegram Init Data", type: "text" },
       },
       async authorize(credentials) {
-        if (!credentials?.initData) return null
+        console.log('[Auth] authorize called with initData:', credentials?.initData ? `present (length: ${(credentials.initData as string).length})` : 'missing')
+        if (!credentials?.initData) {
+          console.log('[Auth] No initData provided')
+          return null
+        }
 
         const botToken = process.env.TELEGRAM_BOT_TOKEN
-        if (!botToken) return null
+        if (!botToken) {
+          console.log('[Auth] No bot token configured')
+          return null
+        }
 
         // Check if this is a widget-verified token
         if ((credentials.initData as string).includes('hash=widget_verified')) {
