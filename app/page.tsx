@@ -44,10 +44,14 @@ export default function HomePage() {
       
       // Only consider it Telegram if:
       // 1. We have initData/initDataUnsafe (actual Telegram data), OR
-      // 2. Platform is set (Telegram sets this in mini app)
+      // 2. Platform is set (Telegram sets this in mini app), OR
+      // 3. version is set (Telegram sets this in mini app)
+      const hasVersion = !!tg.version
+      
       // This prevents false positives when script loads in regular browser
-      if (hasInitData || (isTelegramPlatform && platform)) {
+      if (hasInitData || (isTelegramPlatform && platform) || hasVersion) {
         console.log('[HomePage] ✅ Telegram WebApp detected!')
+        console.log('[HomePage] Reason:', hasInitData ? 'hasInitData' : (isTelegramPlatform ? 'platform set' : 'version set'))
         tg.ready()
         tg.expand()
         setIsTelegram(true)
@@ -55,7 +59,7 @@ export default function HomePage() {
       }
       
       // If script loaded but no Telegram data, we're not in Telegram
-      if (tg && !hasInitData && !isTelegramPlatform) {
+      if (tg && !hasInitData && !isTelegramPlatform && !hasVersion) {
         console.log('[HomePage] ❌ Telegram script loaded but no Telegram data - not in mini app')
         return false
       }
