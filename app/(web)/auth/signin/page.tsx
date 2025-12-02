@@ -13,15 +13,36 @@ function SignInForm() {
   const [error, setError] = useState<string | null>(null)
   const [isWebApp, setIsWebApp] = useState(false)
 
-  // Check if we're in Telegram WebApp
+  // Check if we're in Telegram WebApp and auto-sign in
   useEffect(() => {
     if (typeof window !== "undefined" && (window as any).Telegram?.WebApp) {
       const tg = (window as any).Telegram.WebApp
       tg.ready()
-      const data = tg.initData || tg.initDataUnsafe
+      tg.expand()
+      
+      // Get initData from multiple sources
+      let data = tg.initData
+      if (!data && tg.initDataUnsafe) {
+        try {
+          const params = new URLSearchParams()
+          if (tg.initDataUnsafe.user) params.set('user', JSON.stringify(tg.initDataUnsafe.user))
+          if (tg.initDataUnsafe.auth_date) params.set('auth_date', tg.initDataUnsafe.auth_date.toString())
+          if (tg.initDataUnsafe.hash) params.set('hash', tg.initDataUnsafe.hash)
+          if (tg.initDataUnsafe.query_id) params.set('query_id', tg.initDataUnsafe.query_id)
+          if (tg.initDataUnsafe.start_param) params.set('start_param', tg.initDataUnsafe.start_param)
+          data = params.toString()
+        } catch (e) {
+          console.error('[SignIn] Error converting initDataUnsafe:', e)
+        }
+      }
+      
       if (data) {
         setInitData(data)
         setIsWebApp(true)
+        
+        // Auto-sign in immediately when Telegram WebApp is detected
+        console.log('[SignIn] Telegram WebApp detected, auto-signing in...')
+        handleTelegramSignInAuto(data)
       }
     }
 
@@ -116,6 +137,57 @@ function SignInForm() {
       console.error("Widget sign-in error:", err)
       setError("An error occurred. Please try again.")
     } finally {
+      setLoading(false)
+    }
+  }
+
+  // Auto-sign in function (called automatically when Telegram WebApp is detected)
+  const handleTelegramSignInAuto = async (initDataValue: string) => {
+    if (!initDataValue) {
+      console.log('[SignIn] No initData available for auto-sign-in')
+      return
+    }
+
+    setLoading(true)
+    setError(null)
+
+    try {
+      console.log('[SignIn] Attempting auto-sign-in with initData length:', initDataValue.length)
+      
+      // Clear any NextAuth cookies that might block sign-in
+      if (typeof document !== "undefined") {
+        document.cookie.split(";").forEach((c) => {
+          const cookieName = c.trim().split("=")[0]
+          if (cookieName.includes("next-auth") || cookieName.includes("authjs")) {
+            document.cookie = `${cookieName}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;`
+            document.cookie = `${cookieName}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/; domain=${window.location.hostname};`
+          }
+        })
+      }
+      
+      const result = await signIn("credentials", {
+        initData: initDataValue,
+        redirect: false,
+      })
+
+      console.log('[SignIn] Auto-sign-in result:', JSON.stringify(result))
+
+      if (result?.error) {
+        console.error('[SignIn] Auto-sign-in failed:', result.error)
+        setError("Authentication failed. Please try again.")
+        setLoading(false)
+      } else if (result?.ok) {
+        console.log('[SignIn] Auto-sign-in successful!')
+        const callbackUrl = searchParams.get("callbackUrl") || "/"
+        // Use hard redirect to ensure session cookie is read and session is fully established
+        window.location.href = callbackUrl
+      } else {
+        console.warn('[SignIn] Unexpected sign-in result:', result)
+        setLoading(false)
+      }
+    } catch (err) {
+      console.error('[SignIn] Auto-sign-in error:', err)
+      setError("An error occurred. Please try again.")
       setLoading(false)
     }
   }
