@@ -202,36 +202,26 @@ export default function TelegramLayout({ children }: { children: React.ReactNode
 
     console.log('[TelegramLayout] ✅ Telegram WebApp found immediately')
     setIsTelegramWebApp(true)
+    
+    // Wait for Telegram WebApp to be ready before attempting auth
+    // This ensures initData is available
     tg.ready()
     tg.expand()
-
+    
     // Always try to authenticate when in Telegram WebApp
     // Don't check status - just try if initData is available
-    console.log('[TelegramLayout] 🚀 Starting immediate auth attempt...')
+    console.log('[TelegramLayout] 🚀 Starting auth attempts...')
     attemptAutoAuth(tg)
     
-    // Retry multiple times to ensure authentication happens (faster attempts)
-    const timeout1 = setTimeout(() => {
-      console.log('[TelegramLayout] 🔄 Retry 1 (200ms)')
-      attemptAutoAuth(tg)
-    }, 200)
-    const timeout2 = setTimeout(() => {
-      console.log('[TelegramLayout] 🔄 Retry 2 (500ms)')
-      attemptAutoAuth(tg)
-    }, 500)
-    const timeout3 = setTimeout(() => {
-      console.log('[TelegramLayout] 🔄 Retry 3 (1000ms)')
-      attemptAutoAuth(tg)
-    }, 1000)
-    const timeout4 = setTimeout(() => {
-      console.log('[TelegramLayout] 🔄 Retry 4 (2000ms)')
-      attemptAutoAuth(tg)
-    }, 2000)
+    // Retry multiple times to ensure authentication happens
+    const timeout1 = setTimeout(() => attemptAutoAuth(tg), 300)
+    const timeout2 = setTimeout(() => attemptAutoAuth(tg), 800)
+    const timeout3 = setTimeout(() => attemptAutoAuth(tg), 1500)
+    const timeout4 = setTimeout(() => attemptAutoAuth(tg), 3000)
     const timeout5 = setTimeout(() => {
-      console.log('[TelegramLayout] 🔄 Retry 5 (5000ms) - hiding overlay but continuing')
-      setIsAuthenticating(false)
+      setIsAuthenticating(false) // Hide overlay but keep trying in background
       attemptAutoAuth(tg)
-    }, 5000)
+    }, 8000)
     
     return () => {
       clearTimeout(timeout1)
@@ -435,15 +425,20 @@ export default function TelegramLayout({ children }: { children: React.ReactNode
                 <div className="h-full w-full animate-pulse bg-blue-600"></div>
               </div>
             </div>
-            {/* Manual retry button - always visible */}
+            {/* Manual retry button - always visible with better feedback */}
             <button
-              onClick={async () => {
-                console.log('[TelegramLayout] Manual retry triggered')
+              onClick={async (event) => {
                 const tg = (window as any).Telegram?.WebApp
                 if (!tg) {
-                  alert('Not in Telegram mini app. Please open this in Telegram.')
+                  alert('❌ Not in Telegram mini app.\n\nPlease open this app from Telegram.')
                   return
                 }
+                
+                // Show loading state
+                const button = event.currentTarget as HTMLButtonElement
+                const originalText = button.textContent
+                button.textContent = 'Signing in...'
+                button.disabled = true
                 
                 // Clear any attempt timestamps
                 delete (window as any).lastAuthAttempt
@@ -459,7 +454,10 @@ export default function TelegramLayout({ children }: { children: React.ReactNode
                   })
                 }
                 
-                // Get initData
+                // Wait for Telegram to be ready
+                tg.ready()
+                
+                // Get initData with multiple fallbacks
                 let initData = tg.initData
                 if (!initData && tg.initDataUnsafe) {
                   try {
@@ -471,35 +469,56 @@ export default function TelegramLayout({ children }: { children: React.ReactNode
                     if (tg.initDataUnsafe.start_param) params.set('start_param', tg.initDataUnsafe.start_param)
                     initData = params.toString()
                   } catch (e) {
-                    console.error('[TelegramLayout] Error:', e)
+                    // Error handled below
                   }
                 }
                 
-                if (initData) {
-                  console.log('[TelegramLayout] Manual sign-in attempt with initData length:', initData.length)
+                if (!initData) {
+                  // Try one more time after a short delay
+                  await new Promise(resolve => setTimeout(resolve, 500))
+                  initData = tg.initData
+                  if (!initData && tg.initDataUnsafe?.user) {
+                    try {
+                      const params = new URLSearchParams()
+                      params.set('user', JSON.stringify(tg.initDataUnsafe.user))
+                      if (tg.initDataUnsafe.auth_date) params.set('auth_date', tg.initDataUnsafe.auth_date.toString())
+                      if (tg.initDataUnsafe.hash) params.set('hash', tg.initDataUnsafe.hash)
+                      initData = params.toString()
+                    } catch (e) {
+                      // Error handled below
+                    }
+                  }
+                }
+                
+                if (initData && initData.length > 0) {
                   try {
                     const result = await signIn("credentials", { initData, redirect: false })
-                    console.log('[TelegramLayout] Manual sign-in result:', JSON.stringify(result))
                     if (result?.ok) {
+                      button.textContent = '✅ Signed in!'
                       await update()
-                      window.location.reload() // Force reload to ensure session is picked up
+                      // Small delay then reload to ensure session is picked up
+                      setTimeout(() => {
+                        window.location.reload()
+                      }, 500)
                     } else {
-                      alert(`Sign-in failed: ${result?.error || 'Unknown error'}. Check console for details.`)
+                      button.textContent = originalText || 'Retry Sign In'
+                      button.disabled = false
+                      alert(`❌ Sign-in failed.\n\nError: ${result?.error || 'Unknown error'}\n\nPlease try again or reopen the mini app.`)
                     }
                   } catch (error: any) {
-                    console.error('[TelegramLayout] Manual sign-in error:', error)
-                    alert(`Sign-in error: ${error.message || 'Unknown error'}. Check console for details.`)
+                    button.textContent = originalText || 'Retry Sign In'
+                    button.disabled = false
+                    alert(`❌ Sign-in error.\n\n${error.message || 'Unknown error'}\n\nPlease try again.`)
                   }
                 } else {
-                  console.error('[TelegramLayout] No initData available for manual retry')
-                  console.log('[TelegramLayout] tg.initData:', tg.initData ? 'present' : 'missing')
-                  console.log('[TelegramLayout] tg.initDataUnsafe:', tg.initDataUnsafe ? 'present' : 'missing')
-                  alert('Unable to sign in: No Telegram data available. Please reopen the mini app from Telegram.')
+                  button.textContent = originalText || 'Retry Sign In'
+                  button.disabled = false
+                  alert('❌ Unable to sign in.\n\nNo Telegram authentication data available.\n\nPlease reopen this mini app from Telegram.')
                 }
               }}
-              className="mt-4 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 transition-colors"
+              className="mt-4 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              Retry Sign In
+              Sign In Now
             </button>
           </div>
         </div>
